@@ -35,6 +35,7 @@ export default function App() {
   const [events, setEvents] = useState([])
   const [selected, setSelected] = useState(null)
   const [pass, setPass] = useState(null)
+  const [passDownloaded, setPassDownloaded] = useState(false)
   const [notice, setNotice] = useState('')
   const [loading, setLoading] = useState(true)
 
@@ -49,23 +50,23 @@ export default function App() {
 
   const register = async form => {
     const result = await api('/registrations/events/' + selected.id, { method: 'POST', body: JSON.stringify(form) })
-    setPass(result); setSelected(null); setPage('pass')
+    setPass(result); setPassDownloaded(false); setSelected(null); setPage('pass')
     setNotice('Registration successful. Download your pass and keep it safe.')
   }
 
   return <div className="site">
     <nav className="topbar"><div className="navLinks">
-      <button className={page === 'events' ? 'active' : ''} onClick={() => setPage('events')}>Events</button>
-      <button className={page === 'cancel' ? 'active' : ''} onClick={() => setPage('cancel')}>Cancel Registration</button>
-      <button className={page === 'lost' ? 'active' : ''} onClick={() => setPage('lost')}>Lost &amp; Found</button>
+      <button disabled={!!pass && !passDownloaded} className={page === 'events' ? 'active' : ''} onClick={() => setPage('events')}>Events</button>
+      <button disabled={!!pass && !passDownloaded} className={page === 'cancel' ? 'active' : ''} onClick={() => setPage('cancel')}>Cancel Registration</button>
+      <button disabled={!!pass && !passDownloaded} className={page === 'lost' ? 'active' : ''} onClick={() => setPage('lost')}>Lost &amp; Found</button>
     </div></nav>
-    {notice && <div className="notice">{notice}<button onClick={() => setNotice('')}>×</button></div>}
+    {notice && <div className="notice">{notice}{!(pass && !passDownloaded) && <button onClick={() => setNotice('')}>×</button>}</div>}
     <main>
       {loading && page === 'events' ? <div className="empty">Loading events…</div> :
         page === 'events' ? <Events events={events} onRegister={setSelected} /> :
         page === 'cancel' ? <CancelRegistration setNotice={setNotice} /> :
         page === 'lost' ? <LostFound setNotice={setNotice} /> :
-        <Pass result={pass} />}
+        <Pass result={pass} onDownloaded={() => setPassDownloaded(true)} />}
     </main>
     {selected && <RegistrationForm event={selected} close={() => setSelected(null)} submit={register} />}
   </div>
@@ -98,7 +99,7 @@ function RegistrationForm({ event, close, submit }) {
   </div></div>
 }
 
-function Pass({ result }) {
+function Pass({ result, onDownloaded }) {
   const canvasRef = useRef(null)
   useEffect(() => { if (result) QRCode.toCanvas(canvasRef.current, result.passToken, { width: 180, margin: 1 }) }, [result])
   if (!result) return <div className="page empty">No pass to display.</div>
@@ -111,6 +112,7 @@ function Pass({ result }) {
     ctx.fillText('Registration ID: CF-' + result.id, 55, 275); ctx.drawImage(canvasRef.current, 650, 155, 190, 190)
     ctx.font = '18px Arial'; ctx.fillText('Present this QR code at entry.', 55, 360)
     const a = document.createElement('a'); a.download = 'CampusFest-Pass-' + result.id + '.png'; a.href = canvas.toDataURL('image/png'); a.click()
+    onDownloaded()
   }
   return <section className="page passPage"><div className="passCard"><h1>Registration Successful</h1><p>Your entry pass is ready.</p>
     <div className="passDetails"><b>{result.eventTitle}</b><span>{result.name}</span><span>{result.course}</span><span>Registration ID: CF-{result.id}</span></div>
