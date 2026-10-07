@@ -365,7 +365,7 @@ def dashboard(_: dict = Depends(admin)):
 def public_lost_found():
     with db() as c:
         return [lost_json(r) for r in c.execute(
-            "SELECT * FROM lost_found WHERE status='OPEN' ORDER BY id DESC"
+            "SELECT * FROM lost_found WHERE status='VERIFIED' ORDER BY id DESC"
         )]
 
 @app.post("/api/lost-found")
@@ -378,12 +378,19 @@ def create_lost_found(x: LostFoundIn):
     with db() as c:
         cur = c.execute(
             "INSERT INTO lost_found(type,item,description,location,contact,status,created_at) VALUES(?,?,?,?,?,?,?)",
-            ("FOUND", x.item.strip(), x.description.strip(), x.location.strip(), x.fullName.strip() + " | " + x.phone.strip(), "OPEN", now)
+            ("FOUND", x.item.strip(), x.description.strip(), x.location.strip(), x.fullName.strip() + " | " + x.phone.strip(), "PENDING", now)
         )
         item_id = cur.lastrowid
         c.commit()
         item = c.execute("SELECT * FROM lost_found WHERE id=?", (item_id,)).fetchone()
         return {"report": lost_json(item)}
+
+@app.post("/api/admin/lost-found/{item_id}/verify")
+def verify_lost_found(item_id: int, _: dict = Depends(admin)):
+    with db() as c:
+        c.execute("UPDATE lost_found SET status='VERIFIED' WHERE id=?", (item_id,))
+        c.commit()
+    return {"ok": True, "message": "Found item verified and published."}
 
 @app.post("/api/lost-found/{item_id}/claim")
 def claim_lost_item(item_id: int, x: LostFoundClaimIn):
@@ -391,7 +398,7 @@ def claim_lost_item(item_id: int, x: LostFoundClaimIn):
         raise HTTPException(400, "Full name and mobile number are required")
     now = datetime.now(timezone.utc).isoformat()
     with db() as c:
-        item = c.execute("SELECT * FROM lost_found WHERE id=? AND type='FOUND' AND status='OPEN'", (item_id,)).fetchone()
+        item = c.execute("SELECT * FROM lost_found WHERE id=? AND type='FOUND' AND status='VERIFIED'", (item_id,)).fetchone()
         if not item: raise HTTPException(404, "Found item is no longer available for claiming")
         cur = c.execute(
             """INSERT INTO lost_found_claims(item_id,full_name,college,course,year,email,phone,identification_details,lost_when_where,status,created_at)
