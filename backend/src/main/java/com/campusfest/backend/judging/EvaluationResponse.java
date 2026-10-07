@@ -1,0 +1,1 @@
+package com.campusfest.backend.judging; import java.time.Instant; public record EvaluationResponse(Long id,Long competitionId,Long registrationId,Long judgeId,Integer totalScore,Instant submittedAt){}

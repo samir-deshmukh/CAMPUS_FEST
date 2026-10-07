@@ -10,8 +10,10 @@ The active web stack is:
 - `admin/` – protected React/Vite admin panel
 - `scanner/` – protected QR scanner client
 - `backend/` – FastAPI + PostgreSQL API used by the three web clients
+- `mobile/` – Flutter prototype retained for future work
 - `docs/` – requirements, architecture, database, API, security and testing documentation
 
+`backend/src/main/java/` is a **legacy Spring Boot prototype**. It is not used by the current Render deployment. The production-oriented code path in this repository is `backend/app/main.py`.
 
 ## Local setup
 
