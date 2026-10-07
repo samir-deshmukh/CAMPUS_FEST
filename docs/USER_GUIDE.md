@@ -1,7 +1,26 @@
-# User Guide – CampusFest Offline Demo
+# User Guide – CampusFest
 
-## 1. Start the demo
-From the repository root:
+## 1. Start the backend
+
+Set the environment variables described in `backend/.env.example`, then run:
+
+```bash
+uvicorn app.main:app --app-dir backend --reload
+```
+
+The default development API is `http://localhost:8080/api`.
+
+## 2. Student website
+
+```bash
+cd site
+npm ci
+npm run dev
+```
+
+Use the site to browse events, register, download a QR pass, cancel a registration, view the event gallery, and use Lost & Found.
+
+## 3. Admin panel
 
 ```bash
 cd admin
@@ -9,37 +28,34 @@ npm ci
 npm run dev
 ```
 
-For a production-style static build:
+Sign in using the configured `ADMIN_USERNAME` and `ADMIN_PASSWORD`.
+
+The admin panel can manage events, registrations, gallery records, Lost & Found moderation and scanner credentials.
+
+Keep the admin tab open while working. The backend uses a heartbeat lock to detect stale sessions and limit simultaneous admin tabs.
+
+## 4. QR scanner
 
 ```bash
-npm run build
+cd scanner
+npm ci
+npm run dev
 ```
 
-The resulting `dist/index.html` is designed for offline use.
+Sign in with the configured scanner credentials, choose a published event, allow camera access, and scan the student's QR pass.
 
-## 2. Student demo flow
-1. Open **Overview** to see the festival summary.
-2. Select **Events**.
-3. Search by event, category or venue.
-4. Use category filters to narrow the list.
-5. Open an event card to view details.
-6. Select **Register now**.
-7. Open **My Passes** to see the simulated entry pass.
-8. Use **Schedule** for the event timeline.
-9. Use **Campus Map** for venue information.
-10. Open **Results** for published competition outcomes.
-11. Use **Lost & Found** to demonstrate the report form.
-12. Use **Profile** to demonstrate student account information.
+A pass is accepted only once and only for its registered event.
 
-## 3. Role demonstration
-The sidebar role selector switches the demo view between Student, Organizer and Judge. This is a presentation-only role switch; it does not authenticate against the backend.
+## 5. Production configuration
 
-- **Organizer:** demonstrate event/competition management concepts and result workflow.
-- **Judge:** demonstrate the judging workspace.
-- **Student:** demonstrate discovery, registration, pass and result viewing.
+Set:
 
-## 4. Presentation tip
-A short demonstration should follow: Overview → Events/search → event details → Register → My Passes → Schedule/Map → Results → Organizer → Judge.
+- `DATABASE_URL`
+- `SECURITY_JWT_SECRET`
+- `ADMIN_USERNAME`
+- `ADMIN_PASSWORD`
+- `SCANNER_USERNAME`
+- `SCANNER_PASSWORD`
+- `CORS_ALLOWED_ORIGINS`
 
-## 5. Important limitation
-The website is an offline academic demonstration. Actions shown in the UI are simulated locally and are not persisted to PostgreSQL.
+Never place real secrets in source files or commit `.env` files.

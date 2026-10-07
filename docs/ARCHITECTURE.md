@@ -1,64 +1,65 @@
 # CampusFest Architecture
 
-## Deliverable architecture
+## 1. Active runtime architecture
 
-For the three-day academic deliverable, the demonstrated product is an offline React website. It is intentionally independent of the backend so the demo can run without internet access, a database, or cloud services.
+```text
+Student React/Vite  ───────┐
+Admin React/Vite    ───────┼── HTTPS/REST ── FastAPI ── PostgreSQL
+QR Scanner React/Vite ─────┘
+```
 
-## Repository
+The three web clients share one FastAPI backend. PostgreSQL is the source of truth for events, registrations, passes, gallery content, lost-and-found records, claims, scanner credentials, and admin-session locks.
 
-- admin/ — React + Vite website/demo
-- backend/ — Spring Boot REST API and domain implementation
-- docs/ — architecture, API, security, and requirements documentation
-- DEMO.md — presentation/demo runbook
+## 2. Repository boundaries
 
-## Production-oriented architecture
+- `site/` – public student client
+- `admin/` – authenticated administration client
+- `scanner/` – authenticated QR entry client
+- `backend/app/main.py` – active API and database logic
+- `backend/src/main/java/` – legacy Spring Boot prototype, not deployed
+- `mobile/` – Flutter prototype
+- `docs/` – project documentation
 
-    Student Web/App       Organizer Web       Judge Web
-             \               |               /
-                      REST API
-                    Spring Boot
-                    /    |    \
-              PostgreSQL  Storage  Notifications
+## 3. Request flow
 
-## Backend layers
+1. Browser sends an HTTPS request to the FastAPI API.
+2. Public endpoints validate request data before database writes.
+3. Protected admin/scanner endpoints validate the bearer JWT and role/session state.
+4. SQL is executed with psycopg parameter binding.
+5. The API returns JSON to the client.
 
-Controller -> Service -> Repository -> PostgreSQL
+## 4. Authentication boundaries
 
-Controllers handle HTTP and authentication context. Services enforce business rules and transactions. Repositories provide persistence and locking. Entities model the domain.
+Admin JWTs identify the admin role and browser-tab client ID. The backend additionally checks the active admin lock.
 
-## Main domains
+Scanner JWTs identify the scanner role and current credential version. Changing scanner credentials invalidates older scanner tokens.
 
-Authentication:
-User and role management.
+The frontend never decides whether a privileged operation is authorized.
 
-Events:
-Event lifecycle, venue, capacity, schedule, ownership.
+## 5. Main data domains
 
-Registration:
-Student participation with duplicate prevention and capacity enforcement.
+- Events and posters
+- Student registrations and opaque entry passes
+- Event gallery
+- Lost & Found reports and claims
+- Scanner credentials
+- Admin active-session locks
 
-Entry passes:
-Opaque secure token, pass state, and check-in timestamp.
+## 6. Important design choices
 
-Competitions:
-Competition lifecycle, scoring criteria, judge assignments.
+### Stateless tokens with server-side admin lock
+JWTs avoid server-side session storage for normal authentication. Admin concurrency is a separate server-side control because the project intentionally limits simultaneous admin tabs.
 
-Judging:
-Judge evaluations and criterion-level scores.
+### Database transactions for entry
+QR verification reads and updates the registration in one transaction so a used pass cannot be accepted twice through normal concurrent requests.
 
-Results:
-Official publication and server-side ranking calculation.
+### Database-stored images
+Small images are stored as base64 data URIs to keep the academic deployment simple. This is suitable for the current scale, not for a large media library.
 
-## Security boundaries
+## 7. Legacy code
 
-Authentication and authorization belong at the backend boundary. The frontend must be treated as untrusted input. Hiding an action in React is not a security control.
+The repository still contains a Java/Spring Boot implementation from an earlier architecture. It should not be mixed with the active Python API when modifying the system. If the Java prototype is permanently abandoned, it can be removed in a separate cleanup change after confirming no coursework requires it.
 
-Sensitive operations such as registration capacity checks, judge assignment, score validation, result publication, and QR check-in are therefore implemented or intended to be enforced server-side.
+## 8. Deployment
 
-## Offline demo boundary
-
-The website uses local mock data. Its buttons simulate successful workflows for demonstration and must not be described as connected production operations.
-
-## Future evolution
-
-If the project is expanded after submission, the React website can consume the existing REST API, real authentication can replace the role selector, PostgreSQL can become the source of truth, and storage/notification integrations can be added behind service interfaces.
+Render runs the FastAPI backend as a web service and the React clients as static sites. Environment variables supply secrets, database connection information, CORS origins, and frontend API URLs.

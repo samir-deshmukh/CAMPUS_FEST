@@ -46,7 +46,7 @@ function Scanner(){
     if(code?.data&&!busy.current){
       busy.current=true
       try{
-        const r=await api('/scanner/verify?eventId='+encodeURIComponent(selected.id)+'&passToken='+encodeURIComponent(code.data),{method:'POST'})
+        const r=await api('/scanner/verify',{method:'POST',body:JSON.stringify({eventId:selected.id,passToken:code.data})})
         setResult(r)
         setTimeout(()=>{busy.current=false;setResult(null);if(scanning.current)requestAnimationFrame(scan)},1600);return
       }catch(e){

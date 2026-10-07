@@ -1,47 +1,31 @@
-# CampusFest — Offline Demo
+# CampusFest — Current Demo Runbook
 
-## Run
+## Architecture
 
-The project is designed for a 3-day academic demonstration. No backend, database, cloud service, API, or internet connection is required for the website demo.
+The current demo uses a React/Vite student site, React/Vite admin panel, React/Vite QR scanner, FastAPI backend and PostgreSQL database.
 
-From `admin/`:
+The Java/Spring Boot code is legacy and is not used by the current deployment.
 
-```bash
-npm ci
-npm run dev
-```
+## Quick flow
 
-For a static build:
+1. Start PostgreSQL and the FastAPI backend.
+2. Open the student site and show published events.
+3. Register for an event and download the generated QR pass.
+4. Open the scanner, sign in, choose the event and scan the pass.
+5. Show that the same pass is rejected on a second scan.
+6. Open the admin panel and show registrations and event management.
+7. Show the event gallery and Lost & Found moderation.
+8. Show scanner credential management and explain that changing credentials revokes existing scanner sessions.
 
-```bash
-npm run build
-```
+## Security points to mention
 
-Open `admin/dist/index.html` from the built output. Vite is configured with a relative base so generated assets use relative paths.
+- Secrets come from environment variables.
+- Admin and scanner access are enforced by the backend.
+- QR passes use opaque cryptographically random tokens.
+- Pass tokens are not placed in URLs by the current clients.
+- Images are type- and size-validated server-side.
+- CORS is restricted to configured frontend origins.
 
-## Demo flow
+## Scope note
 
-1. Open CampusFest Overview.
-2. Go to Events and filter by Cultural, Technical, Arts, or Academic.
-3. Register for an event.
-4. Open My Passes and show the generated entry pass.
-5. Open Master Schedule and Campus Map.
-6. Open Official Results and explain that rankings use judge scores and tied ranks are supported.
-7. Open Lost & Found and submit a sample report.
-8. Switch the role selector to Organizer and show the organizer operations dashboard.
-9. Switch to Judge and show the judging workspace.
-10. Return to Student for the final walkthrough.
-
-## Important scope decision
-
-The Flutter mobile app and live deployment were intentionally removed from the 3-day deliverable. The Spring Boot backend remains in the repository as supporting architecture, but the demonstrated product is the offline React website.
-
-## Roles represented
-
-- Student — discover, register, passes, schedule, results, map, lost & found, profile
-- Organizer — event operations and result publication workflow
-- Judge — assigned competition evaluation workflow
-
-## Data
-
-The website uses local mock data for predictable offline demonstration. It does not claim to be connected to the production backend.
+This remains an academic project. The documented remaining hardening work is in `docs/SECURITY.md` and should be acknowledged instead of claiming production certification.

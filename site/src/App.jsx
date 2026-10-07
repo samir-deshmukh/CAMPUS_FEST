@@ -153,7 +153,7 @@ function CancelRegistration({ setNotice }) {
     if (!found) return
     if (!confirm('Cancel this registration? This will make the pass invalid.')) return
     setBusy(true)
-    try { const result = await api('/registrations/me?passToken=' + encodeURIComponent(found), { method: 'DELETE' }); setNotice(result.message); setFile(null); setFound(null) }
+    try { const result = await api('/registrations/me', { method: 'DELETE', body: JSON.stringify({ passToken: found }) }); setNotice(result.message); setFile(null); setFound(null) }
     catch (e) { setError(e.message) } finally { setBusy(false) }
   }
   return <section className="page narrow"><h1>Cancel Registration</h1><p className="muted">Upload the pass image you downloaded after registering. Its QR code identifies your registration.</p>
@@ -204,7 +204,7 @@ function LostFound({ setNotice }) {
   const submitClaim = async e => {
     e.preventDefault(); setBusy(true)
     try {
-      const result = await api('/lost-found/' + claim.id + '/claim', { method: 'POST', body: JSON.stringify(claim.form) })
+      await api('/lost-found/' + claim.id + '/claim', { method: 'POST', body: JSON.stringify(claim.form) })
       setNotice('Claim successful'); setClaim(null)
     } catch (x) { setClaim(c => ({ ...c, error: x.message })) } finally { setBusy(false) }
   }

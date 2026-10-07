@@ -1,4 +1,4 @@
-import os, secrets, re, hashlib, base64
+import os, secrets, re, hashlib, base64, time, threading
 import psycopg
 from psycopg.rows import dict_row
 from datetime import datetime, timedelta, timezone
@@ -10,18 +10,49 @@ from pydantic import BaseModel
 DATABASE_URL = os.getenv("DATABASE_URL")
 if not DATABASE_URL:
     raise RuntimeError("DATABASE_URL is required for CampusFest PostgreSQL")
-SECRET = os.getenv("SECURITY_JWT_SECRET", "campusfest-dev-secret-change-me")
-ADMIN_USER = os.getenv("ADMIN_USERNAME", "SAI")
-ADMIN_PASS = os.getenv("ADMIN_PASSWORD", "campusfest")
+SECRET = os.getenv("SECURITY_JWT_SECRET")
+ADMIN_USER = os.getenv("ADMIN_USERNAME")
+ADMIN_PASS = os.getenv("ADMIN_PASSWORD")
+SCANNER_USER = os.getenv("SCANNER_USERNAME")
+SCANNER_PASS = os.getenv("SCANNER_PASSWORD")
+ADMIN_TAB_HEADER = "X-Admin-Client-ID"
+ALLOWED_ORIGINS = [x.strip() for x in os.getenv("CORS_ALLOWED_ORIGINS", "http://localhost:5173,http://localhost:5174,http://localhost:4173,http://localhost:4174").split(",") if x.strip()]
+RATE_LIMITS: dict[str, list[float]] = {}
+RATE_LIMIT_LOCK = threading.Lock()
+
+def rate_limit(key: str, limit: int, window_seconds: int) -> None:
+    now = time.monotonic()
+    cutoff = now - window_seconds
+    with RATE_LIMIT_LOCK:
+        recent = [stamp for stamp in RATE_LIMITS.get(key, []) if stamp > cutoff]
+        if len(recent) >= limit:
+            raise HTTPException(429, "Too many attempts. Please try again later.")
+        recent.append(now)
+        RATE_LIMITS[key] = recent
+
+if not SECRET or len(SECRET) < 32:
+    raise RuntimeError("SECURITY_JWT_SECRET must be set and contain at least 32 characters")
+if not ADMIN_USER or not ADMIN_PASS:
+    raise RuntimeError("ADMIN_USERNAME and ADMIN_PASSWORD are required")
 
 app = FastAPI(title="CampusFest API")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=False,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization", ADMIN_TAB_HEADER],
 )
+
+@app.middleware("http")
+async def security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    response.headers["Permissions-Policy"] = "camera=(self), microphone=()"
+    response.headers["Cache-Control"] = "no-store" if request.url.path.startswith("/api/") else "no-cache"
+    return response
 
 def db():
     return psycopg.connect(DATABASE_URL, row_factory=dict_row)
@@ -69,7 +100,8 @@ def init_db():
           id INTEGER PRIMARY KEY CHECK (id=1),
           username TEXT NOT NULL,
           password_hash TEXT NOT NULL,
-          is_default BOOLEAN NOT NULL DEFAULT FALSE
+          is_default BOOLEAN NOT NULL DEFAULT FALSE,
+          credential_version INTEGER NOT NULL DEFAULT 1
         );
         CREATE TABLE IF NOT EXISTS event_gallery(
           id BIGSERIAL PRIMARY KEY,
@@ -82,6 +114,7 @@ def init_db():
         c.execute("ALTER TABLE event_gallery ALTER COLUMN event_id DROP NOT NULL")
         c.execute("ALTER TABLE event_gallery ADD COLUMN IF NOT EXISTS description TEXT NOT NULL DEFAULT ''")
         c.execute("ALTER TABLE scanner_credentials ADD COLUMN IF NOT EXISTS is_default BOOLEAN NOT NULL DEFAULT FALSE")
+        c.execute("ALTER TABLE scanner_credentials ADD COLUMN IF NOT EXISTS credential_version INTEGER NOT NULL DEFAULT 1")
         c.execute("ALTER TABLE admin_active_lock DROP CONSTRAINT IF EXISTS admin_active_lock_pkey")
         c.execute("ALTER TABLE admin_active_lock ADD PRIMARY KEY(admin_key, client_id)")
         c.execute("UPDATE registrations SET course=college WHERE (course IS NULL OR course='') AND college IS NOT NULL AND college<>''")
@@ -107,13 +140,15 @@ init_db()
 with db() as _c:
     _row = _c.execute("SELECT id,username,is_default FROM scanner_credentials WHERE id=1").fetchone()
     if not _row:
-        _c.execute("INSERT INTO scanner_credentials(id,username,password_hash,is_default) VALUES(1,%s,%s,FALSE)", ("", hash_scanner_password(ADMIN_PASS)))
+        username = SCANNER_USER or ""
+        password = SCANNER_PASS or secrets.token_urlsafe(32)
+        _c.execute("INSERT INTO scanner_credentials(id,username,password_hash,is_default,credential_version) VALUES(1,%s,%s,FALSE,1)", (username, hash_scanner_password(password)))
         _c.commit()
-    elif not _row["is_default"] and _row["username"].casefold() == ADMIN_USER.casefold():
-        # One-time migration: remove the old hardcoded SAI scanner ID that was
-        # created by the original initialization. Do not affect future changes.
-        _c.execute("UPDATE scanner_credentials SET username='', is_default=TRUE WHERE id=1")
+    elif not _row["username"] and SCANNER_USER and SCANNER_PASS:
+        _c.execute("UPDATE scanner_credentials SET username=%s,password_hash=%s,credential_version=credential_version+1,is_default=FALSE WHERE id=1", (SCANNER_USER, hash_scanner_password(SCANNER_PASS)))
         _c.commit()
+
+
 
 class Login(BaseModel):
     username: str
@@ -138,6 +173,13 @@ class RegistrationIn(BaseModel):
     name: str
     course: str
     phone: str
+
+class PassTokenIn(BaseModel):
+    passToken: str
+
+class ScannerVerifyIn(BaseModel):
+    passToken: str
+    eventId: int
 
 BAD_WORDS = {
     "fuck", "fucking", "shit", "bitch", "bastard", "asshole", "dick", "piss", "cunt", "motherfucker"
@@ -173,6 +215,25 @@ def validate_text(value: str, field: str, max_len: int = 1000, required: bool = 
 def valid_email(value: str) -> bool:
     return bool(re.fullmatch(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}", value.strip()))
 
+def validate_image_data(value: str | None, field: str, required: bool = False, max_bytes: int = 2_500_000) -> str | None:
+    if value is None or value == "":
+        if required:
+            raise HTTPException(400, f"{field} is required")
+        return None
+    match = re.fullmatch(r"data:(image/(?:png|jpeg|webp));base64,([A-Za-z0-9+/=]+)", value)
+    if not match:
+        raise HTTPException(400, f"{field} must be a PNG, JPEG or WebP image")
+    encoded = match.group(2)
+    if len(encoded) > ((max_bytes + 2) // 3) * 4 + 4:
+        raise HTTPException(400, f"{field} is too large")
+    try:
+        raw = base64.b64decode(encoded, validate=True)
+    except Exception:
+        raise HTTPException(400, f"{field} is invalid")
+    if len(raw) > max_bytes:
+        raise HTTPException(400, f"{field} is too large")
+    return value
+
 class LostFoundIn(BaseModel):
     type: str
     fullName: str
@@ -197,8 +258,6 @@ class LostFoundClaimIn(BaseModel):
 # shortly after the heartbeat window rather than waiting a long time.
 ADMIN_LOCK_TTL_SECONDS = 30
 ADMIN_MAX_SESSIONS = 2
-ADMIN_TAB_HEADER = "X-Admin-Client-ID"
-
 
 def _valid_admin_client_id(value: str | None) -> str | None:
     value = (value or "").strip()
@@ -278,6 +337,9 @@ def registration_json(r, include_token=True):
 def lost_json(r):
     return {k: r[k] for k in ("id","type","item","description","location","contact","found_item_image","status","created_at")}
 
+def public_lost_json(r):
+    return {k: r[k] for k in ("id","type","item","description","location","found_item_image","status","created_at")}
+
 def claim_json(r):
     return {
         "id": r["id"], "itemId": r["item_id"], "fullName": r["full_name"],
@@ -293,10 +355,11 @@ def health():
     return {"status": "ok", "service": "CampusFest backend"}
 
 @app.post("/api/auth/login")
-def login(x: Login, x_admin_client_id: str | None = Header(None, alias=ADMIN_TAB_HEADER)):
+def login(request: Request, x: Login, x_admin_client_id: str | None = Header(None, alias=ADMIN_TAB_HEADER)):
     if len(x.username) > 50 or len(x.password) > 100:
         raise HTTPException(400, "Input is too long")
-    if x.username.casefold() != ADMIN_USER.casefold() or x.password != ADMIN_PASS:
+    rate_limit(f"admin-login:{request.client.host if request.client else 'unknown'}", 10, 900)
+    if not (secrets.compare_digest(x.username.casefold(), ADMIN_USER.casefold()) and secrets.compare_digest(x.password, ADMIN_PASS)):
         raise HTTPException(401, "Invalid credentials")
     client_id = _valid_admin_client_id(x_admin_client_id)
     if not client_id:
@@ -377,13 +440,13 @@ async def admin_lock_release(request: Request, authorization: str | None = Heade
 @app.get("/api/event-gallery")
 def public_event_gallery():
     with db() as c:
-        rows=c.execute("SELECT g.id,g.event_id,e.title,g.photo_data,g.description FROM event_gallery g LEFT JOIN events e ON e.id=g.event_id ORDER BY g.id DESC").fetchall()
+        rows=c.execute("SELECT g.id,g.event_id,e.title,g.photo_data,g.description FROM event_gallery g LEFT JOIN events e ON e.id=g.event_id ORDER BY g.id DESC LIMIT 30").fetchall()
         return [{"id":r["id"],"eventId":r["event_id"],"title":r["title"] or "", "photoData":r["photo_data"], "description":r["description"] or ""} for r in rows]
 
 @app.get("/api/admin/event-gallery")
 def admin_event_gallery(_: dict = Depends(admin)):
     with db() as c:
-        rows=c.execute("SELECT g.id,g.event_id,e.title,g.photo_data,g.description FROM event_gallery g LEFT JOIN events e ON e.id=g.event_id ORDER BY g.id DESC").fetchall()
+        rows=c.execute("SELECT g.id,g.event_id,e.title,g.photo_data,g.description FROM event_gallery g LEFT JOIN events e ON e.id=g.event_id ORDER BY g.id DESC LIMIT 30").fetchall()
         return [{"id":r["id"],"eventId":r["event_id"],"title":r["title"] or "", "photoData":r["photo_data"], "description":r["description"] or ""} for r in rows]
 
 class EventGalleryIn(BaseModel):
@@ -392,12 +455,11 @@ class EventGalleryIn(BaseModel):
 
 @app.post("/api/admin/event-gallery")
 def add_event_gallery(x: EventGalleryIn, _: dict = Depends(admin)):
-    if not x.photoData.startswith("data:image/") or len(x.photoData)>3500000:
-        raise HTTPException(400,"Upload a valid image up to 2.5 MB.")
+    photo_data = validate_image_data(x.photoData, "Photo", True)
     description=validate_text(x.description, "Event description", 3000, False, 150)
     with db() as c:
         now=datetime.now(timezone.utc).isoformat()
-        row=c.execute("INSERT INTO event_gallery(event_id,photo_data,description,created_at) VALUES(NULL,%s,%s,%s) RETURNING id",(x.photoData,description,now)).fetchone()
+        row=c.execute("INSERT INTO event_gallery(event_id,photo_data,description,created_at) VALUES(NULL,%s,%s,%s) RETURNING id",(photo_data,description,now)).fetchone()
         c.commit()
         return {"ok":True,"id":row["id"]}
 
@@ -436,10 +498,11 @@ def create_event(x: EventIn, _: dict = Depends(admin)):
     title = validate_text(x.title, "Event name", 120, True, 50)
     description = validate_text(x.description, "Event description", 3000, True, 150)
     status = x.status if x.status in ("PUBLISHED", "DRAFT", "CLOSED") else "DRAFT"
+    poster_data = validate_image_data(x.posterData, "Event poster")
     with db() as c:
         cur = c.execute(
             "INSERT INTO events(title,description,poster_data,status) VALUES(%s,%s,%s,%s) RETURNING id",
-            (title, description, x.posterData, status)
+            (title, description, poster_data, status)
         )
         event_id = cur.fetchone()["id"]
         c.commit()
@@ -450,10 +513,11 @@ def update_event(event_id: int, x: EventIn, _: dict = Depends(admin)):
     title = validate_text(x.title, "Event name", 120, True, 50)
     description = validate_text(x.description, "Event description", 3000, True, 150)
     status = x.status if x.status in ("PUBLISHED", "DRAFT", "CLOSED") else "DRAFT"
+    poster_data = validate_image_data(x.posterData, "Event poster")
     with db() as c:
         c.execute(
             "UPDATE events SET title=%s,description=%s,poster_data=%s,status=%s WHERE id=%s",
-            (title, description, x.posterData, status, event_id)
+            (title, description, poster_data, status, event_id)
         )
         r = c.execute("SELECT * FROM events WHERE id=%s", (event_id,)).fetchone()
         c.commit()
@@ -511,8 +575,11 @@ def register(event_id: int, x: RegistrationIn):
                          JOIN events e ON e.id=r.event_id WHERE r.id=%s""", (registration_id,)).fetchone()
         return registration_json(r)
 
-@app.get("/api/registrations/me")
-def get_pass(passToken: str):
+@app.post("/api/registrations/me")
+def get_pass(x: PassTokenIn):
+    passToken = x.passToken.strip()
+    if not passToken or len(passToken) > 100:
+        raise HTTPException(400, "Invalid pass token")
     with db() as c:
         r = c.execute("""SELECT r.*, e.title event_title FROM registrations r
                          JOIN events e ON e.id=r.event_id WHERE r.pass_token=%s FOR UPDATE""", (passToken,)).fetchone()
@@ -520,7 +587,10 @@ def get_pass(passToken: str):
     return registration_json(r)
 
 @app.delete("/api/registrations/me")
-def cancel_registration(passToken: str):
+def cancel_registration(x: PassTokenIn):
+    passToken = x.passToken.strip()
+    if not passToken or len(passToken) > 100:
+        raise HTTPException(400, "Invalid pass token")
     with db() as c:
         r = c.execute("SELECT * FROM registrations WHERE pass_token=%s", (passToken,)).fetchone()
         if not r: raise HTTPException(404, "Pass not found")
@@ -552,8 +622,11 @@ def registrations(_: dict = Depends(admin)):
                JOIN events e ON e.id=r.event_id ORDER BY r.id DESC"""
         )]
 
-@app.get("/api/admin/verify")
-def verify(passToken: str, _: dict = Depends(admin)):
+@app.post("/api/admin/verify")
+def verify(x: PassTokenIn, _: dict = Depends(admin)):
+    passToken = x.passToken.strip()
+    if not passToken or len(passToken) > 100:
+        raise HTTPException(400, "Invalid pass token")
     with db() as c:
         r = c.execute("""SELECT r.*, e.title event_title FROM registrations r
                          JOIN events e ON e.id=r.event_id WHERE r.pass_token=%s""", (passToken,)).fetchone()
@@ -579,7 +652,7 @@ def update_scanner_credentials(x: ScannerCredentialsUpdate, _: dict = Depends(ad
         row = c.execute("SELECT password_hash FROM scanner_credentials WHERE id=1").fetchone()
         if not row or not verify_scanner_password(x.currentPassword, row["password_hash"]):
             raise HTTPException(401, "Current scanner password is incorrect.")
-        c.execute("UPDATE scanner_credentials SET username=%s WHERE id=1", (username,))
+        c.execute("UPDATE scanner_credentials SET username=%s, credential_version=credential_version+1 WHERE id=1", (username,))
         c.commit()
     return {"ok": True, "username": username}
 
@@ -591,21 +664,22 @@ def update_scanner_password(x: ScannerPasswordUpdate, _: dict = Depends(admin)):
         row = c.execute("SELECT password_hash FROM scanner_credentials WHERE id=1").fetchone()
         if not row or not verify_scanner_password(x.currentPassword, row["password_hash"]):
             raise HTTPException(401, "Current scanner password is incorrect.")
-        c.execute("UPDATE scanner_credentials SET password_hash=%s WHERE id=1", (hash_scanner_password(x.newPassword),))
+        c.execute("UPDATE scanner_credentials SET password_hash=%s, credential_version=credential_version+1 WHERE id=1", (hash_scanner_password(x.newPassword),))
         c.commit()
     return {"ok": True}
 
 @app.post("/api/scanner/login")
-def scanner_login(x: Login):
+def scanner_login(request: Request, x: Login):
     if len(x.username) > 50 or len(x.password) > 100:
         raise HTTPException(400, "Input is too long")
+    rate_limit(f"scanner-login:{request.client.host if request.client else 'unknown'}", 10, 900)
     with db() as c:
-        row = c.execute("SELECT username,password_hash FROM scanner_credentials WHERE id=1").fetchone()
-    if not row or x.username.casefold() != row["username"].casefold() or not verify_scanner_password(x.password, row["password_hash"]):
+        row = c.execute("SELECT username,password_hash,credential_version FROM scanner_credentials WHERE id=1").fetchone()
+    if not row or not row["username"] or not secrets.compare_digest(x.username.casefold(), row["username"].casefold()) or not verify_scanner_password(x.password, row["password_hash"]):
         raise HTTPException(401, "Invalid credentials")
     now = datetime.now(timezone.utc)
     token = jwt.encode({
-        "sub": ADMIN_USER, "role": "SCANNER", "iat": int(now.timestamp()),
+        "sub": row["username"], "role": "SCANNER", "credentialVersion": row["credential_version"], "iat": int(now.timestamp()),
         "exp": int((now + timedelta(hours=8)).timestamp())
     }, SECRET, algorithm="HS256")
     return {"token": token, "username": row["username"], "role": "SCANNER"}
@@ -619,6 +693,10 @@ def scanner_user(authorization: str | None = Header(None)):
         raise HTTPException(401, "Invalid or expired scanner session")
     if payload.get("role") != "SCANNER":
         raise HTTPException(403, "Scanner access required")
+    with db() as c:
+        row = c.execute("SELECT credential_version FROM scanner_credentials WHERE id=1").fetchone()
+    if not row or payload.get("credentialVersion") != row["credential_version"]:
+        raise HTTPException(401, "Scanner session has been revoked")
     return payload
 
 @app.get("/api/scanner/events")
@@ -630,7 +708,11 @@ def scanner_events(_: dict = Depends(scanner_user)):
         return [{"id": r["id"], "title": r["title"], "status": r["status"], "posterData": r["poster_data"]} for r in rows]
 
 @app.post("/api/scanner/verify")
-def scanner_verify(passToken: str, eventId: int, _: dict = Depends(scanner_user)):
+def scanner_verify(x: ScannerVerifyIn, _: dict = Depends(scanner_user)):
+    passToken = x.passToken.strip()
+    if not passToken or len(passToken) > 100:
+        raise HTTPException(400, "Invalid pass token")
+    eventId = x.eventId
     with db() as c:
         c.execute("BEGIN")
         r = c.execute("""SELECT r.*, e.title event_title FROM registrations r
@@ -690,8 +772,8 @@ def validate_text_live(x: TextCheckIn):
 @app.get("/api/lost-found")
 def public_lost_found():
     with db() as c:
-        return [lost_json(r) for r in c.execute(
-            "SELECT * FROM lost_found WHERE status='VERIFIED' ORDER BY id DESC"
+        return [public_lost_json(r) for r in c.execute(
+            "SELECT * FROM lost_found WHERE status='VERIFIED' ORDER BY id DESC LIMIT 50"
         )]
 
 @app.post("/api/lost-found")

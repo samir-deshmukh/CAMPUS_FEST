@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import jsQR from 'jsqr'
 import './App.css'
 
 const API = import.meta.env.VITE_API_URL || 'http://localhost:8080/api'
@@ -105,6 +104,8 @@ function Login({onLogin}){const[u,setU]=useState(''),[p,setP]=useState(''),[err,
 
 function ScannerCredentials({notice}){
   const [username,setUsername]=useState(''),[currentPassword,setCurrentPassword]=useState(''),[newPassword,setNewPassword]=useState(''),[busyId,setBusyId]=useState(false),[busyPassword,setBusyPassword]=useState(false)
+  // Intentionally load once when the scanner-credentials panel mounts.
+  // oxlint-disable-next-line react-hooks/exhaustive-deps
   useEffect(()=>{api('/admin/scanner-credentials').then(r=>setUsername(r.username||'')).catch(e=>notice(e.message))},[])
   const changeId=async e=>{e.preventDefault();setBusyId(true);try{const r=await api('/admin/scanner-credentials',{method:'POST',body:JSON.stringify({username,currentPassword})});setUsername(r.username);notice('QR Scanner ID updated.')}catch(e){notice(e.message)}finally{setBusyId(false)}}
   const savePassword=async e=>{e.preventDefault();setBusyPassword(true);try{await api('/admin/scanner-password',{method:'POST',body:JSON.stringify({currentPassword,newPassword})});setCurrentPassword('');setNewPassword('');notice('QR Scanner password updated.')}catch(e){notice(e.message)}finally{setBusyPassword(false)}}
@@ -120,6 +121,8 @@ function Gallery({notice}){
   const [editingId,setEditingId]=useState(null)
   const [editingDescription,setEditingDescription]=useState('')
   const load=async()=>{try{setPhotos(await api('/admin/event-gallery'))}catch(e){notice(e.message)}}
+  // Intentionally load once when the gallery panel mounts.
+  // oxlint-disable-next-line react-hooks/exhaustive-deps
   useEffect(()=>{load()},[])
   const chooseFile=e=>{const f=e.target.files?.[0];e.target.value='';if(!f)return;if(!['image/png','image/jpeg','image/webp'].includes(f.type)){notice('Use PNG, JPEG or WebP.');return}if(f.size>2500000){notice('Photo must be 2.5 MB or smaller.');return}setSelectedFile(f)}
   const upload=()=>{if(!selectedFile){notice('Select a photo first.');return}const r=new FileReader();r.onload=async()=>{try{await api('/admin/event-gallery',{method:'POST',body:JSON.stringify({photoData:r.result,description})});setDescription('');setSelectedFile(null);setFileInputKey(v=>v+1);notice('Photo added.');load()}catch(x){notice(x.message)}};r.readAsDataURL(selectedFile)}
