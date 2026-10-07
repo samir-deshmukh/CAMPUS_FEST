@@ -89,6 +89,19 @@ def contains_bad_words(value: str) -> bool:
 def valid_mobile(value: str) -> bool:
     return bool(re.fullmatch(r"[6-9]\d{9}", value.strip()))
 
+def validate_text(value: str, field: str, max_len: int = 1000, required: bool = True):
+    value = value.strip()
+    if required and not value:
+        raise HTTPException(400, f"{field} is required")
+    if len(value) > max_len:
+        raise HTTPException(400, f"{field} is too long")
+    if contains_bad_words(value):
+        raise HTTPException(400, f"Please use respectful language in {field.lower()}")
+    return value
+
+def valid_email(value: str) -> bool:
+    return bool(re.fullmatch(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}", value.strip()))
+
 class LostFoundIn(BaseModel):
     type: str
     fullName: str
@@ -178,11 +191,13 @@ def all_events(_: dict = Depends(admin)):
 
 @app.post("/api/events")
 def create_event(x: EventIn, _: dict = Depends(admin)):
+    title = validate_text(x.title, "Event name", 120)
+    description = validate_text(x.description, "Event description", 3000)
     status = x.status if x.status in ("PUBLISHED", "DRAFT", "CLOSED") else "DRAFT"
     with db() as c:
         cur = c.execute(
             "INSERT INTO events(title,description,poster_data,status) VALUES(%s,%s,%s,%s) RETURNING id",
-            (x.title.strip(), x.description.strip(), x.posterData, status)
+            (title, description, x.posterData, status)
         )
         event_id = cur.fetchone()["id"]
         c.commit()
@@ -190,11 +205,13 @@ def create_event(x: EventIn, _: dict = Depends(admin)):
 
 @app.put("/api/events/{event_id}")
 def update_event(event_id: int, x: EventIn, _: dict = Depends(admin)):
+    title = validate_text(x.title, "Event name", 120)
+    description = validate_text(x.description, "Event description", 3000)
     status = x.status if x.status in ("PUBLISHED", "DRAFT", "CLOSED") else "DRAFT"
     with db() as c:
         c.execute(
             "UPDATE events SET title=%s,description=%s,poster_data=%s,status=%s WHERE id=%s",
-            (x.title.strip(), x.description.strip(), x.posterData, status, event_id)
+            (title, description, x.posterData, status, event_id)
         )
         r = c.execute("SELECT * FROM events WHERE id=%s", (event_id,)).fetchone()
         c.commit()
@@ -232,6 +249,12 @@ def delete_event(event_id: int, _: dict = Depends(admin)):
 
 @app.post("/api/registrations/events/{event_id}")
 def register(event_id: int, x: RegistrationIn):
+    name = validate_text(x.name, "Name", 100)
+    college = validate_text(x.college, "College", 150)
+    if not valid_email(x.email):
+        raise HTTPException(400, "Enter a valid email address")
+    if not valid_mobile(x.phone):
+        raise HTTPException(400, "Enter a valid 10-digit Indian mobile number")
     with db() as c:
         event = c.execute("SELECT * FROM events WHERE id=%s AND status='PUBLISHED'", (event_id,)).fetchone()
         if not event: raise HTTPException(404, "Registration is closed or event not found")
@@ -240,7 +263,7 @@ def register(event_id: int, x: RegistrationIn):
         cur = c.execute(
             """INSERT INTO registrations(event_id,name,college,email,phone,pass_token,status,entry_status,registered_at)
                VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id""",
-            (event_id, x.name.strip(), x.college.strip(), x.email.strip(), x.phone.strip(), token, "ACTIVE", "NOT_ENTERED", now)
+            (event_id, name, college, x.email.strip(), x.phone.strip(), token, "ACTIVE", "NOT_ENTERED", now)
         )
         registration_id = cur.fetchone()["id"]
         c.commit()
@@ -372,15 +395,15 @@ def create_lost_found(x: LostFoundIn):
         raise HTTPException(400, "Full name and mobile number are required")
     if not valid_mobile(x.phone):
         raise HTTPException(400, "Enter a valid 10-digit Indian mobile number")
-    if not x.item.strip() or not x.description.strip():
-        raise HTTPException(400, "Item name and description are required")
-    if contains_bad_words(x.item) or contains_bad_words(x.description):
-        raise HTTPException(400, "Please use respectful language in the item name and description")
+    full_name = validate_text(x.fullName, "Full name", 100)
+    item = validate_text(x.item, "Item name", 100)
+    description = validate_text(x.description, "Item description", 1000)
+    location = validate_text(x.location, "Found location", 200)
     now = datetime.now(timezone.utc).isoformat()
     with db() as c:
         cur = c.execute(
             "INSERT INTO lost_found(type,item,description,location,contact,found_item_image,status,created_at) VALUES(%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id",
-            ("FOUND", x.item.strip(), x.description.strip(), x.location.strip(), x.fullName.strip() + " | " + x.phone.strip(), x.foundItemImage.strip(), "PENDING", now)
+            ("FOUND", item, description, location, full_name + " | " + x.phone.strip(), x.foundItemImage.strip(), "PENDING", now)
         )
         item_id = cur.fetchone()["id"]
         c.commit()
@@ -396,8 +419,17 @@ def verify_lost_found(item_id: int, _: dict = Depends(admin)):
 
 @app.post("/api/lost-found/{item_id}/claim")
 def claim_lost_item(item_id: int, x: LostFoundClaimIn):
-    if not x.fullName.strip() or not x.phone.strip():
-        raise HTTPException(400, "Full name and mobile number are required")
+    if not valid_mobile(x.phone):
+        raise HTTPException(400, "Enter a valid 10-digit Indian mobile number")
+    full_name = validate_text(x.fullName, "Full name", 100)
+    college = validate_text(x.college, "College", 150, False)
+    course = validate_text(x.course, "Course", 100, False)
+    year = validate_text(x.year, "Year", 20, False)
+    email = x.email.strip()
+    if email and not valid_email(email):
+        raise HTTPException(400, "Enter a valid email address")
+    identification = validate_text(x.identificationDetails, "Identification details", 1000, False)
+    lost_when_where = validate_text(x.lostWhenWhere, "Where / when lost", 500, False)
     now = datetime.now(timezone.utc).isoformat()
     with db() as c:
         item = c.execute("SELECT * FROM lost_found WHERE id=%s AND type='FOUND' AND status='VERIFIED'", (item_id,)).fetchone()
@@ -405,7 +437,7 @@ def claim_lost_item(item_id: int, x: LostFoundClaimIn):
         cur = c.execute(
             """INSERT INTO lost_found_claims(item_id,full_name,college,course,year,email,phone,identification_details,lost_when_where,lost_item_image,status,created_at)
                VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id""",
-            (item_id,x.fullName.strip(),x.college.strip(),x.course.strip(),x.year.strip(),x.email.strip(),x.phone.strip(),x.identificationDetails.strip(),x.lostWhenWhere.strip(),x.lostItemImage.strip(),"PENDING",now)
+            (item_id,full_name,college,course,year,email,x.phone.strip(),identification,lost_when_where,x.lostItemImage.strip(),"PENDING",now)
         )
         claim_id = cur.fetchone()["id"]
         c.commit()
