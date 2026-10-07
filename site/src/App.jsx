@@ -174,15 +174,13 @@ function LostFound({ setNotice }) {
         <button className="primary" disabled={busy}>{busy ? 'Submitting…' : 'Submit report'}</button>
       </form></div>
       <div>
-        <div className="claimSection">
-          <div className="claimHeading"><div><h2>Found Items — Claim Lost Item</h2><p className="muted">If your lost item is listed below, click the button to submit a claim.</p></div></div>
-          <div className="reports">{items.filter(x => x.type === 'FOUND' && x.status === 'OPEN').map(x => <article className="report foundReport" key={x.id}><span className="tag">FOUND</span><h3>{x.item}</h3><p>{x.description}</p><small>Found at: {x.location}</small><button className="primary claimButton" onClick={() => setClaim({ id:x.id, form:{fullName:'',college:'',course:'',year:'',email:'',phone:'',identificationDetails:'',lostWhenWhere:''} })}>Claim Lost Item</button></article>)}</div>
-          {!items.some(x => x.type === 'FOUND' && x.status === 'OPEN') && <div className="empty">No found items are currently available to claim.</div>}
-        </div>
-        <div className="reportSection"><h2>Current Reports</h2>
-          {matches.length > 0 && <div className="panel matchPanel"><h3>Possible Match Found</h3><p>A similar item has been reported as found and is available at the <b>College Lost &amp; Found Counter</b>.</p>{matches.map(x => <article className="report foundReport" key={x.id}><span className="tag">FOUND</span><h3>{x.item}</h3><p>{x.description}</p><small>Found at: {x.location}</small><button className="primary claimButton" onClick={() => setClaim({ id:x.id, form:{fullName:'',college:'',course:'',year:'',email:'',phone:'',identificationDetails:'',lostWhenWhere:''} })}>Claim Lost Item</button></article>)}</div>}
-          <div className="reports">{items.map(x => <article className="report" key={x.id}><span className="tag">{x.type}</span><h3>{x.item}</h3><p>{x.description}</p><small>{x.location}</small></article>)}</div>
-          {!items.length && <div className="empty">No active reports.</div>}
+        <div>
+          <div className="claimSection">
+            <div className="claimHeading"><h2>Lost Items</h2><p className="muted">If you see your lost item here, click Claim Lost Item.</p></div>
+            <div className="reports">{items.filter(x => x.type === 'FOUND' && x.status === 'OPEN').map(x => <article className="report foundReport" key={x.id}><span className="tag">ITEM AVAILABLE</span><h3>{x.item}</h3><p>{x.description}</p><small>Available at: College Lost &amp; Found Counter</small><button className="primary claimButton" onClick={() => setClaim({ id:x.id, form:{fullName:''} })}>Claim Lost Item</button></article>)}</div>
+            {!items.some(x => x.type === 'FOUND' && x.status === 'OPEN') && <div className="empty">No lost items are currently available.</div>}
+          </div>
+          {matches.length > 0 && <div className="panel matchPanel"><h3>Possible Match Found</h3><p>Your lost item may be available at the <b>College Lost &amp; Found Counter</b>.</p></div>}
         </div>
       </div>
     </div>
@@ -194,17 +192,10 @@ function ClaimForm({ claim, setClaim, submit, close, busy }) {
   const change = (key, value) => setClaim(c => ({ ...c, form: { ...c.form, [key]: value } }))
   return <div className="modal"><div className="modalCard"><button className="close" onClick={close}>×</button>
     <span className="badge">CLAIM LOST ITEM</span><h2>Claim Lost Item</h2>
-    <p className="muted">Tell us details that can help the admin verify that this item belongs to you.</p>
+    <p className="muted">Enter your name to claim this item.</p>
     <form onSubmit={submit}>
-      <label>Full name<input required value={claim.form.fullName} onChange={e => change('fullName',e.target.value)} /></label>
-      <label>College<input required value={claim.form.college} onChange={e => change('college',e.target.value)} /></label>
-      <label>Course<input required value={claim.form.course} onChange={e => change('course',e.target.value)} /></label>
-      <label>Year<input required value={claim.form.year} onChange={e => change('year',e.target.value)} /></label>
-      <label>Email<input required type="email" value={claim.form.email} onChange={e => change('email',e.target.value)} /></label>
-      <label>Phone<input required value={claim.form.phone} onChange={e => change('phone',e.target.value)} /></label>
-      <label>Item identification details<textarea required placeholder="Give details only the real owner is likely to know." value={claim.form.identificationDetails} onChange={e => change('identificationDetails',e.target.value)} /></label>
-      <label>Where/when did you lose it? <span className="muted">(optional)</span><textarea value={claim.form.lostWhenWhere} onChange={e => change('lostWhenWhere',e.target.value)} /></label>
-      <div className="formActions"><button type="button" className="outline" onClick={close}>Cancel</button><button className="primary" disabled={busy}>{busy ? 'Submitting…' : 'Submit Claim'}</button></div>
+      <label>Your name<input required value={claim.form.fullName} onChange={e => change('fullName',e.target.value)} /></label>
+      <div className="formActions"><button type="button" className="outline" onClick={close}>Cancel</button><button className="primary" disabled={busy}>{busy ? 'Submitting…' : 'Claim'}</button></div>
     </form>
   </div></div>
 }

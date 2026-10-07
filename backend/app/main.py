@@ -106,12 +106,12 @@ class LostFoundIn(BaseModel):
 
 class LostFoundClaimIn(BaseModel):
     fullName: str
-    college: str
-    course: str
-    year: str
-    email: str
-    phone: str
-    identificationDetails: str
+    college: str = ''
+    course: str = ''
+    year: str = ''
+    email: str = ''
+    phone: str = ''
+    identificationDetails: str = ''
     lostWhenWhere: str = ''
 
 def admin(authorization: str | None = Header(None)):
@@ -406,9 +406,8 @@ def lost_item_matches(item_id: int):
 
 @app.post("/api/lost-found/{item_id}/claim")
 def claim_lost_item(item_id: int, x: LostFoundClaimIn):
-    required = [x.fullName, x.college, x.course, x.year, x.email, x.phone, x.identificationDetails]
-    if not all(v.strip() for v in required):
-        raise HTTPException(400, "Please complete all required claim details")
+    if not x.fullName.strip():
+        raise HTTPException(400, "Please enter your name")
     now = datetime.now(timezone.utc).isoformat()
     with db() as c:
         item = c.execute("SELECT * FROM lost_found WHERE id=? AND type='FOUND' AND status='OPEN'", (item_id,)).fetchone()
@@ -419,7 +418,7 @@ def claim_lost_item(item_id: int, x: LostFoundClaimIn):
             (item_id,x.fullName.strip(),x.college.strip(),x.course.strip(),x.year.strip(),x.email.strip(),x.phone.strip(),x.identificationDetails.strip(),x.lostWhenWhere.strip(),"PENDING",now)
         )
         c.commit()
-        return {"ok": True, "message": "Claim submitted. The admin will verify your details before handover at the College Lost & Found Counter.", "claimId": cur.lastrowid}
+        return {"ok": True, "message": "Claim submitted. Please collect your item from the College Lost & Found Counter.", "claimId": cur.lastrowid}
 
 @app.get("/api/admin/lost-found")
 def admin_lost_found(_: dict = Depends(admin)):
