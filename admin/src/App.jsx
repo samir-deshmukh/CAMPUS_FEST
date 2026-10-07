@@ -54,13 +54,12 @@ function LostAdmin({rows,load,notice}) {
         {r.found_item_image&&<div className="reportPhoto"><span>Found item photo</span><img className="detailImage" src={r.found_item_image} alt="Found item" onClick={()=>setLightbox(r.found_item_image)}/></div>}
         {latest&&<div className="claimNotice"><div><strong>Claim received</strong><span>{latest.fullName} says this item is theirs.</span></div><button className="primary" onClick={e=>{e.stopPropagation();setOpenClaim(openClaim===latest.id?null:latest.id)}}>{openClaim===latest.id?'Hide Claim':'View Claim'}</button></div>}
         {openClaim&&r.claims.filter(c=>c.id===openClaim).map(c=><div className="claimPanel" key={c.id}><div className="claimPanelHead"><div><span className="eyebrow">CLAIM #{c.id}</span><h4>Claimant details</h4></div><span className="badge">{c.status}</span></div><div className="reportGrid"><div className="reportField"><span>Full name</span><strong>{c.fullName}</strong></div><div className="reportField"><span>Mobile</span><strong>{c.phone}</strong></div><div className="reportField"><span>Email</span><strong>{c.email||'—'}</strong></div><div className="reportField"><span>College / Course / Year</span><strong>{[c.college,c.course,c.year].filter(Boolean).join(' · ')||'—'}</strong></div></div><div className="reportDescription"><span>Identification</span><p>{c.identificationDetails||'—'}</p></div>{c.lostWhenWhere&&<div className="reportDescription"><span>Where / when lost</span><p>{c.lostWhenWhere}</p></div>}{c.lostItemImage&&<div className="reportPhoto"><span>Claimant photo</span><img className="detailImage" src={c.lostItemImage} alt="Lost item" onClick={()=>setLightbox(c.lostItemImage)}/></div>}{c.status==='PENDING'&&<div className="actions"><button className="outline" onClick={()=>claimAction(c.id,'reject')}>Reject Claim</button><button className="primary" onClick={()=>claimAction(c.id,'approve')}>Approve &amp; Mark Returned</button></div>}</div>)}
-        <div className="actions">{r.status==='PENDING'&&<button className="primary" onClick={()=>verify(r.id)}>Verify &amp; Publish</button>}{r.status==='VERIFIED'&&<button className="outline" onClick={()=>resolve(r.id)}>Mark Resolved</button>}</div>
+        <div className="actions">{r.status==='PENDING'&&<button className="primary" onClick={e=>{e.stopPropagation();verify(r.id)}}>Verify &amp; Publish</button>}</div>
       </article>
       {lightbox&&<div className="imageLightbox" onClick={()=>setLightbox(null)}><button className="close" onClick={()=>setLightbox(null)}>×</button><img src={lightbox} alt="Enlarged item"/></div>}
     </section>
   }
   const verify=async id=>{try{await api('/admin/lost-found/'+id+'/verify',{method:'POST'});notice('Found item verified and published.');load()}catch(e){notice(e.message)}}
-  const resolve=async id=>{try{await api('/admin/lost-found/'+id+'/resolve',{method:'POST'});notice('Report resolved.');load()}catch(e){notice(e.message)}}
   const claimAction=async(id,action)=>{try{await api('/admin/lost-found/claims/'+id+'/'+action,{method:'POST'});notice(action==='approve'?'Claim approved and item resolved.':'Claim rejected.');setOpenClaim(null);load()}catch(e){notice(e.message)}}
   return <section className="content">
     <div className="sectionIntro"><div><h2 className="sectionTitle">Lost &amp; Found Reports</h2><p className="muted">Each report and its claims are kept together in one case.</p></div></div>
@@ -88,7 +87,7 @@ function LostAdmin({rows,load,notice}) {
           {c.lostItemImage&&<div className="reportPhoto"><span>Claimant photo</span><img className="claimImage" src={c.lostItemImage} alt="Lost item submitted by claimant" /></div>}
           {c.status==='PENDING'&&<div className="actions"><button className="outline" onClick={()=>claimAction(c.id,'reject')}>Reject Claim</button><button className="primary" onClick={()=>claimAction(c.id,'approve')}>Approve &amp; Mark Returned</button></div>}
         </div>)}</>}
-        <div className="actions">{r.status==='PENDING'&&<button className="primary" onClick={()=>verify(r.id)}>Verify &amp; Publish</button>}{r.status==='VERIFIED'&&<button className="outline" onClick={()=>resolve(r.id)}>Mark Resolved</button>}</div>
+        <div className="actions">{r.status==='PENDING'&&<button className="primary" onClick={e=>{e.stopPropagation();verify(r.id)}}>Verify &amp; Publish</button>}</div>
       </article>
     })}</div>
     {!rows.length&&<div className="empty">No lost &amp; found reports.</div>}
