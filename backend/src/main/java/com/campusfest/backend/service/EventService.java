@@ -7,6 +7,7 @@ import com.campusfest.backend.repository.*;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 
 @Service
@@ -20,7 +21,17 @@ public class EventService {
         User u=users.findByEmailIgnoreCase(email).orElseThrow(()->new ResponseStatusException(HttpStatus.UNAUTHORIZED,"User not found"));
         Event e=new Event(); apply(e,r); e.setCreatedBy(u); return EventResponse.from(events.save(e));
     }
-    public EventResponse update(Long id,EventRequest r){Event e=events.findById(id).orElseThrow(()->new ResponseStatusException(HttpStatus.NOT_FOUND,"Event not found"));apply(e,r);return EventResponse.from(events.save(e));}
-    public void delete(Long id){if(!events.existsById(id))throw new ResponseStatusException(HttpStatus.NOT_FOUND,"Event not found");events.deleteById(id);}
+    @Transactional public EventResponse update(Long id,EventRequest r,String email){
+        Event e=events.findById(id).orElseThrow(()->new ResponseStatusException(HttpStatus.NOT_FOUND,"Event not found"));
+        ensureOwnerOrAdmin(e,email); apply(e,r); return EventResponse.from(events.save(e));
+    }
+    @Transactional public void delete(Long id,String email){
+        Event e=events.findById(id).orElseThrow(()->new ResponseStatusException(HttpStatus.NOT_FOUND,"Event not found"));
+        ensureOwnerOrAdmin(e,email); events.delete(e);
+    }
+    private void ensureOwnerOrAdmin(Event e,String email){
+        User u=users.findByEmailIgnoreCase(email).orElseThrow(()->new ResponseStatusException(HttpStatus.UNAUTHORIZED,"User not found"));
+        if(u.getRole()!=com.campusfest.backend.entity.Role.ADMIN && !e.getCreatedBy().getId().equals(u.getId())) throw new ResponseStatusException(HttpStatus.FORBIDDEN,"You do not manage this event");
+    }
     private void apply(Event e,EventRequest r){e.setTitle(r.title().trim());e.setDescription(r.description().trim());e.setCategory(r.category().trim());e.setVenue(r.venue().trim());e.setStartTime(r.startTime());e.setEndTime(r.endTime());e.setCapacity(r.capacity());e.setStatus(r.status()==null?EventStatus.DRAFT:r.status());}
 }

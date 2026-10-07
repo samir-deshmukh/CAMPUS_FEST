@@ -18,6 +18,6 @@ public class EventController {
     @PostMapping @PreAuthorize("hasAnyRole('ORGANIZER','ADMIN')")
     public EventResponse create(@Valid @RequestBody EventRequest r,org.springframework.security.core.Authentication a){return service.create(r,a.getName());}
     @PutMapping("/{id}") @PreAuthorize("hasAnyRole('ORGANIZER','ADMIN')")
-    public EventResponse update(@PathVariable Long id,@Valid @RequestBody EventRequest r){return service.update(id,r);}
-    @DeleteMapping("/{id}") @PreAuthorize("hasAnyRole('ORGANIZER','ADMIN')") public void delete(@PathVariable Long id){service.delete(id);}
+    public EventResponse update(@PathVariable Long id,@Valid @RequestBody EventRequest r,org.springframework.security.core.Authentication a){return service.update(id,r,a.getName());}
+    @DeleteMapping("/{id}") @PreAuthorize("hasAnyRole('ORGANIZER','ADMIN')") public void delete(@PathVariable Long id,org.springframework.security.core.Authentication a){service.delete(id,a.getName());}
 }

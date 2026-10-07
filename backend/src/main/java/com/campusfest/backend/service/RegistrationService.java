@@ -16,7 +16,7 @@ import java.util.List;
  public RegistrationService(RegistrationRepository r,EventRepository e,UserRepository u){registrations=r;events=e;users=u;}
  @Transactional public RegistrationResponse register(Long eventId,String email){
   User u=users.findByEmailIgnoreCase(email).orElseThrow(()->new ResponseStatusException(HttpStatus.UNAUTHORIZED,"User not found"));
-  Event e=events.findById(eventId).orElseThrow(()->new ResponseStatusException(HttpStatus.NOT_FOUND,"Event not found"));
+  Event e=events.findByIdForUpdate(eventId).orElseThrow(()->new ResponseStatusException(HttpStatus.NOT_FOUND,"Event not found"));
   if(e.getStatus()!=EventStatus.PUBLISHED)throw new ResponseStatusException(HttpStatus.CONFLICT,"Event is not open for registration");
   if(registrations.existsByEventIdAndUserIdAndStatus(eventId,u.getId(),RegistrationStatus.ACTIVE))throw new ResponseStatusException(HttpStatus.CONFLICT,"Already registered");
   if(registrations.countByEventIdAndStatus(eventId,RegistrationStatus.ACTIVE)>=e.getCapacity())throw new ResponseStatusException(HttpStatus.CONFLICT,"Event is full");
