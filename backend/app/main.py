@@ -61,6 +61,20 @@ with db() as c:
       status TEXT NOT NULL DEFAULT 'OPEN',
       created_at TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS lost_found_claims(
+      id INTEGER PRIMARY KEY,
+      item_id INTEGER NOT NULL,
+      full_name TEXT NOT NULL,
+      college TEXT NOT NULL,
+      course TEXT NOT NULL,
+      year TEXT NOT NULL,
+      email TEXT NOT NULL,
+      phone TEXT NOT NULL,
+      identification_details TEXT NOT NULL,
+      lost_when_where TEXT DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'PENDING',
+      created_at TEXT NOT NULL
+    );
     """)
 
 class Login(BaseModel):
@@ -85,6 +99,16 @@ class LostFoundIn(BaseModel):
     description: str
     location: str
     contact: str
+
+class LostFoundClaimIn(BaseModel):
+    fullName: str
+    college: str
+    course: str
+    year: str
+    email: str
+    phone: str
+    identificationDetails: str
+    lostWhenWhere: str = ''
 
 def admin(authorization: str | None = Header(None)):
     if not authorization or not authorization.startswith("Bearer "):
@@ -115,6 +139,16 @@ def registration_json(r, include_token=True):
 
 def lost_json(r):
     return {k: r[k] for k in ("id","type","item","description","location","contact","status","created_at")}
+
+def claim_json(r):
+    return {
+        "id": r["id"], "itemId": r["item_id"], "fullName": r["full_name"],
+        "college": r["college"], "course": r["course"], "year": r["year"],
+        "email": r["email"], "phone": r["phone"],
+        "identificationDetails": r["identification_details"],
+        "lostWhenWhere": r["lost_when_where"], "status": r["status"],
+        "createdAt": r["created_at"]
+    }
 
 @app.get("/health")
 def health():
@@ -284,13 +318,77 @@ def create_lost_found(x: LostFoundIn):
             "INSERT INTO lost_found(type,item,description,location,contact,status,created_at) VALUES(?,?,?,?,?,?,?)",
             (x.type, x.item.strip(), x.description.strip(), x.location.strip(), x.contact.strip(), "OPEN", now)
         )
+        item_id = cur.lastrowid
         c.commit()
-        return lost_json(c.execute("SELECT * FROM lost_found WHERE id=?", (cur.lastrowid,)).fetchone())
+        item = c.execute("SELECT * FROM lost_found WHERE id=?", (item_id,)).fetchone()
+        matches = []
+        if x.type == "LOST":
+            needle = set((x.item + " " + x.description).lower().replace(",", " ").split())
+            for r in c.execute("SELECT * FROM lost_found WHERE type='FOUND' AND status='OPEN' ORDER BY id DESC"):
+                hay = set((r["item"] + " " + r["description"]).lower().replace(",", " ").split())
+                common = needle & hay
+                score = len(common) / max(1, len(needle))
+                if score >= 0.20 or x.item.strip().lower() == r["item"].strip().lower():
+                    matches.append(lost_json(r))
+        return {"report": lost_json(item), "possibleMatches": matches}
+
+@app.get("/api/lost-found/{item_id}/matches")
+def lost_item_matches(item_id: int):
+    with db() as c:
+        lost = c.execute("SELECT * FROM lost_found WHERE id=? AND type='LOST' AND status='OPEN'", (item_id,)).fetchone()
+        if not lost: raise HTTPException(404, "Lost report not found")
+        needle_words = set((lost["item"] + " " + lost["description"]).lower().replace(",", " ").split())
+        matches = []
+        for r in c.execute("SELECT * FROM lost_found WHERE type='FOUND' AND status='OPEN' ORDER BY id DESC"):
+            hay = set((r["item"] + " " + r["description"]).lower().replace(",", " ").split())
+            score = len(needle_words & hay) / max(1, len(needle_words))
+            if score >= 0.20 or lost["item"].strip().lower() == r["item"].strip().lower():
+                matches.append(lost_json(r))
+        return matches
+
+@app.post("/api/lost-found/{item_id}/claim")
+def claim_lost_item(item_id: int, x: LostFoundClaimIn):
+    required = [x.fullName, x.college, x.course, x.year, x.email, x.phone, x.identificationDetails]
+    if not all(v.strip() for v in required):
+        raise HTTPException(400, "Please complete all required claim details")
+    now = datetime.now(timezone.utc).isoformat()
+    with db() as c:
+        item = c.execute("SELECT * FROM lost_found WHERE id=? AND type='FOUND' AND status='OPEN'", (item_id,)).fetchone()
+        if not item: raise HTTPException(404, "Found item is no longer available for claiming")
+        cur = c.execute(
+            """INSERT INTO lost_found_claims(item_id,full_name,college,course,year,email,phone,identification_details,lost_when_where,status,created_at)
+               VALUES(?,?,?,?,?,?,?,?,?,?,?)""",
+            (item_id,x.fullName.strip(),x.college.strip(),x.course.strip(),x.year.strip(),x.email.strip(),x.phone.strip(),x.identificationDetails.strip(),x.lostWhenWhere.strip(),"PENDING",now)
+        )
+        c.commit()
+        return {"ok": True, "message": "Claim submitted. The admin will verify your details before handover at the College Lost & Found Counter.", "claimId": cur.lastrowid}
 
 @app.get("/api/admin/lost-found")
 def admin_lost_found(_: dict = Depends(admin)):
     with db() as c:
         return [lost_json(r) for r in c.execute("SELECT * FROM lost_found ORDER BY id DESC")]
+
+@app.get("/api/admin/lost-found/claims")
+def admin_lost_found_claims(_: dict = Depends(admin)):
+    with db() as c:
+        return [claim_json(r) for r in c.execute("SELECT * FROM lost_found_claims ORDER BY id DESC")]
+
+@app.post("/api/admin/lost-found/claims/{claim_id}/approve")
+def approve_claim(claim_id: int, _: dict = Depends(admin)):
+    with db() as c:
+        claim = c.execute("SELECT * FROM lost_found_claims WHERE id=?", (claim_id,)).fetchone()
+        if not claim: raise HTTPException(404, "Claim not found")
+        c.execute("UPDATE lost_found_claims SET status='APPROVED' WHERE id=?", (claim_id,))
+        c.execute("UPDATE lost_found SET status='RESOLVED' WHERE id=?", (claim["item_id"],))
+        c.commit()
+    return {"ok": True, "message": "Claim approved and item marked resolved."}
+
+@app.post("/api/admin/lost-found/claims/{claim_id}/reject")
+def reject_claim(claim_id: int, _: dict = Depends(admin)):
+    with db() as c:
+        c.execute("UPDATE lost_found_claims SET status='REJECTED' WHERE id=?", (claim_id,))
+        c.commit()
+    return {"ok": True, "message": "Claim rejected."}
 
 @app.post("/api/admin/lost-found/{item_id}/resolve")
 def resolve_lost_found(item_id: int, _: dict = Depends(admin)):

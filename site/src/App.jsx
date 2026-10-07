@@ -141,19 +141,64 @@ function CancelRegistration({ setNotice }) {
 }
 
 function LostFound({ setNotice }) {
-  const [items, setItems] = useState([]), [form, setForm] = useState({ type: 'LOST', item: '', description: '', location: '', contact: '' }), [busy, setBusy] = useState(false)
+  const [items, setItems] = useState([]), [form, setForm] = useState({ type: 'LOST', item: '', description: '', location: '', contact: '' }), [claim, setClaim] = useState(null), [busy, setBusy] = useState(false), [matches, setMatches] = useState([]), [lostReportId, setLostReportId] = useState(null)
   const load = async () => { try { setItems(await api('/lost-found')) } catch {} }
   useEffect(() => { load() }, [])
-  const submit = async e => { e.preventDefault(); setBusy(true); try { await api('/lost-found', { method: 'POST', body: JSON.stringify(form) }); setForm({ type: 'LOST', item: '', description: '', location: '', contact: '' }); setNotice('Lost & Found report submitted.'); load() } catch (x) { setNotice(x.message) } finally { setBusy(false) } }
-  return <section className="page"><h1>Lost &amp; Found</h1><div className="lostGrid">
-    <div className="panel"><h2>Report an item</h2><form onSubmit={submit}>
-      <label>Report type<select value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value }))}><option value="LOST">Lost item</option><option value="FOUND">Found item</option></select></label>
-      <label>Item name<input required value={form.item} onChange={e => setForm(f => ({ ...f, item: e.target.value }))} /></label>
-      <label>Description<textarea required value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} /></label>
-      <label>Location<input required value={form.location} onChange={e => setForm(f => ({ ...f, location: e.target.value }))} /></label>
-      <label>Contact<input required value={form.contact} onChange={e => setForm(f => ({ ...f, contact: e.target.value }))} /></label>
-      <button className="primary" disabled={busy}>{busy ? 'Submitting…' : 'Submit report'}</button>
-    </form></div>
-    <div><h2>Current reports</h2><div className="reports">{items.map(x => <article className="report" key={x.id}><span className="tag">{x.type}</span><h3>{x.item}</h3><p>{x.description}</p><small>{x.location} · {x.contact}</small></article>)}</div>{!items.length && <div className="empty">No active reports.</div>}</div>
-  </div></section>
+  useEffect(() => { if (!lostReportId) return; const poll = async () => { try { const m = await api('/lost-found/' + lostReportId + '/matches'); if (m.length) { setMatches(m); setNotice('Possible match found! A similar item is available at the College Lost & Found Counter.') } } catch {} }; poll(); const timer = setInterval(poll, 10000); return () => clearInterval(timer) }, [lostReportId])
+  const submit = async e => {
+    e.preventDefault(); setBusy(true)
+    try {
+      const result = await api('/lost-found', { method: 'POST', body: JSON.stringify(form) })
+      setForm({ type: 'LOST', item: '', description: '', location: '', contact: '' })
+      setMatches(result.possibleMatches || [])
+      if (form.type === 'LOST') setLostReportId(result.report.id)
+      setNotice(result.possibleMatches?.length ? 'Possible match found! A similar item is available at the College Lost & Found Counter.' : 'Lost & Found report submitted.')
+      load()
+    } catch (x) { setNotice(x.message) } finally { setBusy(false) }
+  }
+  const submitClaim = async e => {
+    e.preventDefault(); setBusy(true)
+    try {
+      const result = await api('/lost-found/' + claim.id + '/claim', { method: 'POST', body: JSON.stringify(claim.form) })
+      setNotice(result.message); setClaim(null)
+    } catch (x) { setNotice(x.message) } finally { setBusy(false) }
+  }
+  return <section className="page"><h1>Lost &amp; Found</h1>
+    <div className="lostGrid">
+      <div className="panel"><h2>Report an item</h2><form onSubmit={submit}>
+        <label>Report type<select value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value }))}><option value="LOST">Lost item</option><option value="FOUND">Found item</option></select></label>
+        <label>Item name<input required value={form.item} onChange={e => setForm(f => ({ ...f, item: e.target.value }))} /></label>
+        <label>Description<textarea required value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} /></label>
+        <label>Location<input required value={form.location} onChange={e => setForm(f => ({ ...f, location: e.target.value }))} /></label>
+        <label>Contact<input required value={form.contact} onChange={e => setForm(f => ({ ...f, contact: e.target.value }))} /></label>
+        <button className="primary" disabled={busy}>{busy ? 'Submitting…' : 'Submit report'}</button>
+      </form></div>
+      <div><h2>Current reports</h2>
+        {matches.length > 0 && <div className="panel matchPanel"><h3>Possible Match Found</h3><p>A similar item has been reported as found and is available at the <b>College Lost &amp; Found Counter</b>.</p>{matches.map(x => <article className="report" key={x.id}><span className="tag">FOUND</span><h3>{x.item}</h3><p>{x.description}</p><small>Found at: {x.location}</small><button className="primary" onClick={() => setClaim({ id:x.id, form:{fullName:'',college:'',course:'',year:'',email:'',phone:'',identificationDetails:'',lostWhenWhere:''} })}>Claim Lost Item</button></article>)}</div>}
+        <div className="reports">{items.map(x => <article className="report" key={x.id}><span className="tag">{x.type}</span><h3>{x.item}</h3><p>{x.description}</p><small>{x.location}</small>{x.type==='FOUND' && <button className="primary" onClick={() => setClaim({ id:x.id, form:{fullName:'',college:'',course:'',year:'',email:'',phone:'',identificationDetails:'',lostWhenWhere:''} })}>Claim Lost Item</button>}</article>)}</div>
+        {!items.length && <div className="empty">No active reports.</div>}
+      </div>
+    </div>
+    {claim && <ClaimForm claim={claim} setClaim={setClaim} submit={submitClaim} close={() => setClaim(null)} busy={busy} />}
+  </section>
 }
+
+function ClaimForm({ claim, setClaim, submit, close, busy }) {
+  const change = (key, value) => setClaim(c => ({ ...c, form: { ...c.form, [key]: value } }))
+  return <div className="modal"><div className="modalCard"><button className="close" onClick={close}>×</button>
+    <span className="badge">CLAIM LOST ITEM</span><h2>Claim Lost Item</h2>
+    <p className="muted">Tell us details that can help the admin verify that this item belongs to you.</p>
+    <form onSubmit={submit}>
+      <label>Full name<input required value={claim.form.fullName} onChange={e => change('fullName',e.target.value)} /></label>
+      <label>College<input required value={claim.form.college} onChange={e => change('college',e.target.value)} /></label>
+      <label>Course<input required value={claim.form.course} onChange={e => change('course',e.target.value)} /></label>
+      <label>Year<input required value={claim.form.year} onChange={e => change('year',e.target.value)} /></label>
+      <label>Email<input required type="email" value={claim.form.email} onChange={e => change('email',e.target.value)} /></label>
+      <label>Phone<input required value={claim.form.phone} onChange={e => change('phone',e.target.value)} /></label>
+      <label>Item identification details<textarea required placeholder="Give details only the real owner is likely to know." value={claim.form.identificationDetails} onChange={e => change('identificationDetails',e.target.value)} /></label>
+      <label>Where/when did you lose it? <span className="muted">(optional)</span><textarea value={claim.form.lostWhenWhere} onChange={e => change('lostWhenWhere',e.target.value)} /></label>
+      <div className="formActions"><button type="button" className="outline" onClick={close}>Cancel</button><button className="primary" disabled={busy}>{busy ? 'Submitting…' : 'Submit Claim'}</button></div>
+    </form>
+  </div></div>
+}
+
