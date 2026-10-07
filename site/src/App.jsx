@@ -77,8 +77,10 @@ export default function App() {
 function EventGallery() {
   const [photos,setPhotos]=useState([])
   const [loading,setLoading]=useState(true)
+  const [lightbox,setLightbox]=useState(null)
   useEffect(()=>{let alive=true;const load=async()=>{try{const r=await api('/event-gallery');if(alive)setPhotos(r)}catch{}finally{if(alive)setLoading(false)}};load();const t=setInterval(load,5000);return()=>{alive=false;clearInterval(t)}},[])
-  return <section className="page"><h1>Event Gallery</h1>{loading?<div className="empty">Loading photos…</div>:photos.length?<div className="eventPhotoGallery">{photos.map(p=><img key={p.id} src={p.photoData} alt="" />)}</div>:<div className="empty">No event photos available.</div>}</section>
+  useEffect(()=>{if(!lightbox)return;const close=e=>e.key==='Escape'&&setLightbox(null);window.addEventListener('keydown',close);return()=>window.removeEventListener('keydown',close)},[lightbox])
+  return <section className="page"><h1>Event Gallery</h1>{loading?<div className="empty">Loading photos…</div>:photos.length?<div className="eventPhotoGallery">{photos.map(p=><button className="eventPhotoButton" key={p.id} onClick={()=>setLightbox(p.photoData)}><img src={p.photoData} alt="" /></button>)}</div>:<div className="empty">No event photos available.</div>}{lightbox&&<div className="galleryLightbox" onClick={()=>setLightbox(null)}><button className="galleryLightboxClose" onClick={()=>setLightbox(null)}>×</button><img src={lightbox} alt="Enlarged event photo" onClick={e=>e.stopPropagation()}/></div>}</section>
 }
 
 function Events({ events, onRegister }) {
