@@ -62,26 +62,30 @@ function LostAdmin({rows,load,notice}) {
   const verify=async id=>{try{await api('/admin/lost-found/'+id+'/verify',{method:'POST'});notice('Found item verified and published.');load()}catch(e){notice(e.message)}}
   const claimAction=async(id,action)=>{try{await api('/admin/lost-found/claims/'+id+'/'+action,{method:'POST'});notice(action==='approve'?'Claim approved and item resolved.':'Claim rejected.');setOpenClaim(null);load()}catch(e){notice(e.message)}}
   return <section className="content">
-    <div className="sectionIntro"><div><h2 className="sectionTitle">Lost &amp; Found Reports</h2><p className="muted">Each report and its claims are kept together in one case.</p></div></div>
-    <div className="adminReports">{rows.map(r=>{
+    <div className="sectionIntro"><div><h2 className="sectionTitle">Lost &amp; Found Reports</h2></div></div>
+    <div className="eventList adminLostList">{rows.map(r=>{
       const pending=(r.claims||[]).filter(c=>c.status==='PENDING'), latest=pending[0]
-      return <article className="adminLostRow reportClickable" key={r.id} onClick={()=>setSelectedReport(r.id)}>
+      return <article className="adminEvent adminLostCard" key={r.id}>
+        {r.found_item_image
+          ? <img src={r.found_item_image} alt="Found item" className="clickableImage" onClick={()=>setLightbox(r.found_item_image)}/>
+          : <div className="noPoster">No image</div>}
         <div className="adminLostInfo">
-          <div className="reportHeader"><div><span className="eyebrow">REPORT #{r.id}</span><h3>{r.item}</h3></div></div>
-          <div className="adminLostMeta"><span>{r.location}</span><span>{(r.contact||'').split(' | ')[0]}</span><span>{(r.contact||'').split(' | ')[1]||'—'}</span></div>
-          <p>{r.description}</p>
-          <div className="adminLostStatus">
+          <div className="badges">
+            <span className="badge">REPORT #{r.id}</span>
             {r.status==='VERIFIED'&&<span className="badge">VERIFIED</span>}
             {r.status==='RESOLVED'&&<span className="badge">RESOLVED</span>}
-            {pending.length>0&&<span className="claimAlert">{pending.length} claim{pending.length===1?'':'s'} received</span>}
+            {pending.length>0&&<span className="badge claimAlert">{pending.length} CLAIM RECEIVED</span>}
           </div>
+          <h2>{r.item}</h2>
+          <p>{r.description}</p>
+          <div className="adminLostMeta"><span>{r.location}</span><span>{(r.contact||'').split(' | ')[0]}</span><span>{(r.contact||'').split(' | ')[1]||'—'}</span></div>
         </div>
-        <div className="adminLostImage">{r.found_item_image?<img className="claimImage clickableImage" src={r.found_item_image} alt="Found item" onClick={e=>{e.stopPropagation();setLightbox(r.found_item_image)}}/>:<div className="noPoster">No image</div>}</div>
-        <div className="adminLostActions">
-          {r.status==='PENDING'&&<button className="primary" onClick={e=>{e.stopPropagation();verify(r.id)}}>Verify &amp; Publish</button>}
-          {latest&&<button className="outline" onClick={e=>{e.stopPropagation();setOpenClaim(openClaim===latest.id?null:latest.id)}}>{openClaim===latest.id?'Hide Claim':'View Claim'}</button>}
+        <div className="actions adminLostActions">
+          {r.status==='PENDING'&&<button className="primary" onClick={()=>verify(r.id)}>Verify &amp; Publish</button>}
+          {latest&&<button className="outline" onClick={()=>setOpenClaim(openClaim===latest.id?null:latest.id)}>{openClaim===latest.id?'Hide Claim':'View Claim'}</button>}
+          {r.status!=='PENDING'&&!latest&&<span className="muted adminNoAction">{r.status==='RESOLVED'?'No action required':'Published'}</span>}
         </div>
-        {openClaim&&<>{(r.claims||[]).filter(c=>c.id===openClaim).map(c=><div className="claimPanel adminLostClaim" key={c.id}>
+        {openClaim&&(r.claims||[]).filter(c=>c.id===openClaim).map(c=><div className="claimPanel adminLostClaim" key={c.id}>
           <div className="claimPanelHead"><div><span className="eyebrow">CLAIM #{c.id}</span><h4>Claimant details</h4></div><span className="badge">{c.status}</span></div>
           <div className="reportGrid">
             <div className="reportField"><span>Full name</span><strong>{c.fullName}</strong></div><div className="reportField"><span>Mobile</span><strong>{c.phone}</strong></div>
@@ -91,9 +95,10 @@ function LostAdmin({rows,load,notice}) {
           {c.lostWhenWhere&&<div className="reportDescription"><span>Where / when lost</span><p>{c.lostWhenWhere}</p></div>}
           {c.lostItemImage&&<div className="reportPhoto"><span>Claimant photo</span><img className="claimImage" src={c.lostItemImage} alt="Lost item submitted by claimant"/></div>}
           {c.status==='PENDING'&&<div className="actions"><button className="outline" onClick={()=>claimAction(c.id,'reject')}>Reject Claim</button><button className="primary" onClick={()=>claimAction(c.id,'approve')}>Approve &amp; Mark Returned</button></div>}
-        </div>)}</>}
+        </div>)}
       </article>
     })}</div>
     {!rows.length&&<div className="empty">No lost &amp; found reports.</div>}
+    {lightbox&&<div className="imageLightbox" onClick={()=>setLightbox(null)}><button className="close" onClick={()=>setLightbox(null)}>×</button><img src={lightbox} alt="Enlarged item"/></div>}
   </section>
 }
