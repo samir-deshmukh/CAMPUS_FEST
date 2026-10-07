@@ -99,10 +99,11 @@ class RegistrationIn(BaseModel):
 
 class LostFoundIn(BaseModel):
     type: str
+    fullName: str
+    phone: str
     item: str
     description: str
     location: str
-    contact: str
 
 class LostFoundClaimIn(BaseModel):
     fullName: str
@@ -369,45 +370,25 @@ def public_lost_found():
 
 @app.post("/api/lost-found")
 def create_lost_found(x: LostFoundIn):
-    if x.type not in ("LOST", "FOUND"): raise HTTPException(400, "Invalid report type")
+    if x.type != "FOUND":
+        raise HTTPException(400, "Only found items can be reported. Lost items are handled manually.")
+    if not x.fullName.strip() or not x.phone.strip():
+        raise HTTPException(400, "Full name and mobile number are required")
     now = datetime.now(timezone.utc).isoformat()
     with db() as c:
         cur = c.execute(
             "INSERT INTO lost_found(type,item,description,location,contact,status,created_at) VALUES(?,?,?,?,?,?,?)",
-            (x.type, x.item.strip(), x.description.strip(), x.location.strip(), x.contact.strip(), "OPEN", now)
+            ("FOUND", x.item.strip(), x.description.strip(), x.location.strip(), x.fullName.strip() + " | " + x.phone.strip(), "OPEN", now)
         )
         item_id = cur.lastrowid
         c.commit()
         item = c.execute("SELECT * FROM lost_found WHERE id=?", (item_id,)).fetchone()
-        matches = []
-        if x.type == "LOST":
-            needle = set((x.item + " " + x.description).lower().replace(",", " ").split())
-            for r in c.execute("SELECT * FROM lost_found WHERE type='FOUND' AND status='OPEN' ORDER BY id DESC"):
-                hay = set((r["item"] + " " + r["description"]).lower().replace(",", " ").split())
-                common = needle & hay
-                score = len(common) / max(1, len(needle))
-                if score >= 0.20 or x.item.strip().lower() == r["item"].strip().lower():
-                    matches.append(lost_json(r))
-        return {"report": lost_json(item), "possibleMatches": matches}
-
-@app.get("/api/lost-found/{item_id}/matches")
-def lost_item_matches(item_id: int):
-    with db() as c:
-        lost = c.execute("SELECT * FROM lost_found WHERE id=? AND type='LOST' AND status='OPEN'", (item_id,)).fetchone()
-        if not lost: raise HTTPException(404, "Lost report not found")
-        needle_words = set((lost["item"] + " " + lost["description"]).lower().replace(",", " ").split())
-        matches = []
-        for r in c.execute("SELECT * FROM lost_found WHERE type='FOUND' AND status='OPEN' ORDER BY id DESC"):
-            hay = set((r["item"] + " " + r["description"]).lower().replace(",", " ").split())
-            score = len(needle_words & hay) / max(1, len(needle_words))
-            if score >= 0.20 or lost["item"].strip().lower() == r["item"].strip().lower():
-                matches.append(lost_json(r))
-        return matches
+        return {"report": lost_json(item)}
 
 @app.post("/api/lost-found/{item_id}/claim")
 def claim_lost_item(item_id: int, x: LostFoundClaimIn):
-    if not x.fullName.strip():
-        raise HTTPException(400, "Please enter your name")
+    if not x.fullName.strip() or not x.phone.strip():
+        raise HTTPException(400, "Full name and mobile number are required")
     now = datetime.now(timezone.utc).isoformat()
     with db() as c:
         item = c.execute("SELECT * FROM lost_found WHERE id=? AND type='FOUND' AND status='OPEN'", (item_id,)).fetchone()
