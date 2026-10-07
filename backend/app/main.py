@@ -64,6 +64,12 @@ def init_db():
           client_id TEXT NOT NULL,
           updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
         );
+        CREATE TABLE IF NOT EXISTS event_gallery(
+          id BIGSERIAL PRIMARY KEY,
+          event_id BIGINT NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+          photo_data TEXT NOT NULL,
+          created_at TEXT NOT NULL
+        );
         """)
         c.execute("UPDATE registrations SET course=college WHERE (course IS NULL OR course='') AND college IS NOT NULL AND college<>''")
 
@@ -141,7 +147,7 @@ class LostFoundClaimIn(BaseModel):
 
 # A closed/crashed tab stops heartbeats. The lock is therefore considered stale
 # shortly after the heartbeat window rather than waiting a long time.
-ADMIN_LOCK_TTL_SECONDS = 15
+ADMIN_LOCK_TTL_SECONDS = 30
 ADMIN_TAB_HEADER = "X-Admin-Client-ID"
 
 
@@ -165,8 +171,8 @@ def _acquire_admin_lock(connection, client_id: str):
 
 def _require_admin_lock(connection, client_id: str):
     row = connection.execute(
-        "SELECT client_id FROM admin_active_lock WHERE admin_key=%s AND updated_at >= CURRENT_TIMESTAMP - INTERVAL '12 seconds'",
-        (ADMIN_USER.casefold(),),
+        "SELECT client_id FROM admin_active_lock WHERE admin_key=%s AND updated_at >= CURRENT_TIMESTAMP - (%s * INTERVAL '1 second')",
+        (ADMIN_USER.casefold(), ADMIN_LOCK_TTL_SECONDS),
     ).fetchone()
     if not row or row["client_id"] != client_id:
         raise HTTPException(409, "Admin panel is active in another browser/tab. Use the tab that signed in.")
@@ -302,6 +308,41 @@ async def admin_lock_release(request: Request, authorization: str | None = Heade
         )
         c.commit()
     return {"ok": True}
+
+@app.get("/api/event-gallery")
+def public_event_gallery():
+    with db() as c:
+        rows=c.execute("SELECT g.id,g.event_id,e.title,g.photo_data FROM event_gallery g JOIN events e ON e.id=g.event_id ORDER BY g.id DESC").fetchall()
+        return [{"id":r["id"],"eventId":r["event_id"],"title":r["title"],"photoData":r["photo_data"]} for r in rows]
+
+@app.get("/api/admin/event-gallery")
+def admin_event_gallery(_: dict = Depends(admin)):
+    with db() as c:
+        rows=c.execute("SELECT g.id,g.event_id,e.title,g.photo_data FROM event_gallery g JOIN events e ON e.id=g.event_id ORDER BY g.id DESC").fetchall()
+        return [{"id":r["id"],"eventId":r["event_id"],"title":r["title"],"photoData":r["photo_data"]} for r in rows]
+
+class EventGalleryIn(BaseModel):
+    eventId: int
+    photoData: str
+
+@app.post("/api/admin/event-gallery")
+def add_event_gallery(x: EventGalleryIn, _: dict = Depends(admin)):
+    if not x.photoData.startswith("data:image/") or len(x.photoData)>3500000:
+        raise HTTPException(400,"Upload a valid image up to 2.5 MB.")
+    with db() as c:
+        if not c.execute("SELECT id FROM events WHERE id=%s",(x.eventId,)).fetchone():
+            raise HTTPException(404,"Event not found")
+        now=datetime.now(timezone.utc).isoformat()
+        row=c.execute("INSERT INTO event_gallery(event_id,photo_data,created_at) VALUES(%s,%s,%s) RETURNING id",(x.eventId,x.photoData,now)).fetchone()
+        c.commit()
+        return {"ok":True,"id":row["id"]}
+
+@app.delete("/api/admin/event-gallery/{photo_id}")
+def delete_event_gallery(photo_id:int, _:dict=Depends(admin)):
+    with db() as c:
+        c.execute("DELETE FROM event_gallery WHERE id=%s",(photo_id,))
+        c.commit()
+    return {"ok":True}
 
 @app.get("/api/events")
 def public_events():

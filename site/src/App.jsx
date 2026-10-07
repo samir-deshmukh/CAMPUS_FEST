@@ -59,6 +59,7 @@ export default function App() {
       <button disabled={!!pass && !passDownloaded} className={page === 'events' ? 'active' : ''} onClick={() => setPage('events')}>Events</button>
       <button disabled={!!pass && !passDownloaded} className={page === 'cancel' ? 'active' : ''} onClick={() => setPage('cancel')}>Cancel Registration</button>
       <button disabled={!!pass && !passDownloaded} className={page === 'lost' ? 'active' : ''} onClick={() => setPage('lost')}>Lost &amp; Found</button>
+      <button disabled={!!pass && !passDownloaded} className={page === 'gallery' ? 'active' : ''} onClick={() => setPage('gallery')}>Event Gallery</button>
     </div></nav>
     {notice && <div className="notice">{notice}{!(pass && !passDownloaded) && <button onClick={() => setNotice('')}>×</button>}</div>}
     <main>
@@ -66,10 +67,18 @@ export default function App() {
         page === 'events' ? <Events events={events} onRegister={setSelected} /> :
         page === 'cancel' ? <CancelRegistration setNotice={setNotice} /> :
         page === 'lost' ? <LostFound setNotice={setNotice} /> :
+        page === 'gallery' ? <EventGallery /> :
         <Pass result={pass} onDownloaded={() => setPassDownloaded(true)} />}
     </main>
     {selected && <RegistrationForm event={selected} close={() => setSelected(null)} submit={register} />}
   </div>
+}
+
+function EventGallery() {
+  const [photos,setPhotos]=useState([])
+  const [loading,setLoading]=useState(true)
+  useEffect(()=>{let alive=true;const load=async()=>{try{const r=await api('/event-gallery');if(alive)setPhotos(r)}catch{}finally{if(alive)setLoading(false)}};load();const t=setInterval(load,5000);return()=>{alive=false;clearInterval(t)}},[])
+  return <section className="page"><h1>Event Gallery</h1>{loading?<div className="empty">Loading photos…</div>:photos.length?<div className="eventPhotoGallery">{photos.map(p=><img key={p.id} src={p.photoData} alt="" />)}</div>:<div className="empty">No event photos available.</div>}</section>
 }
 
 function Events({ events, onRegister }) {
