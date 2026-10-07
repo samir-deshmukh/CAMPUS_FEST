@@ -1,4 +1,4 @@
-import os, secrets, re
+import os, secrets, re, hashlib, base64
 import psycopg
 from psycopg.rows import dict_row
 from datetime import datetime, timedelta, timezone
@@ -64,6 +64,11 @@ def init_db():
           client_id TEXT NOT NULL,
           updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
         );
+        CREATE TABLE IF NOT EXISTS scanner_credentials(
+          id INTEGER PRIMARY KEY CHECK (id=1),
+          username TEXT NOT NULL,
+          password_hash TEXT NOT NULL
+        );
         CREATE TABLE IF NOT EXISTS event_gallery(
           id BIGSERIAL PRIMARY KEY,
           event_id BIGINT REFERENCES events(id) ON DELETE CASCADE,
@@ -77,7 +82,26 @@ def init_db():
         c.execute("UPDATE registrations SET course=college WHERE (course IS NULL OR course='') AND college IS NOT NULL AND college<>''")
 
 
-init_db()
+def hash_scanner_password(password: str, salt: bytes | None = None) -> str:
+    salt = salt or secrets.token_bytes(16)
+    digest = hashlib.pbkdf2_hmac("sha256", password.encode(), salt, 210000)
+    return base64.b64encode(salt).decode() + "$" + base64.b64encode(digest).decode()
+
+def verify_scanner_password(password: str, stored: str) -> bool:
+    try:
+        salt_b64, digest_b64 = stored.split("$", 1)
+        salt = base64.b64decode(salt_b64)
+        expected = base64.b64decode(digest_b64)
+        actual = hashlib.pbkdf2_hmac("sha256", password.encode(), salt, 210000)
+        return secrets.compare_digest(actual, expected)
+    except Exception:
+        return False
+
+with db() as _c:
+    _row = _c.execute("SELECT id FROM scanner_credentials WHERE id=1").fetchone()
+    if not _row:
+        _c.execute("INSERT INTO scanner_credentials(id,username,password_hash) VALUES(1,%s,%s)", (ADMIN_USER, hash_scanner_password(ADMIN_PASS)))
+        _c.commit()
 
 class Login(BaseModel):
     username: str
@@ -491,11 +515,29 @@ def verify(passToken: str, _: dict = Depends(admin)):
         **registration_json(r, False)
     }
 
+@app.get("/api/admin/scanner-credentials")
+def get_scanner_credentials(_: dict = Depends(admin)):
+    with db() as c:
+        row = c.execute("SELECT username FROM scanner_credentials WHERE id=1").fetchone()
+    return {"username": row["username"] if row else ADMIN_USER}
+
+@app.post("/api/admin/scanner-credentials")
+def update_scanner_credentials(x: Login, _: dict = Depends(admin)):
+    if not x.username.strip() or len(x.username.strip()) > 50 or len(x.password) < 6 or len(x.password) > 100:
+        raise HTTPException(400, "Scanner ID must be 1-50 characters and password must be 6-100 characters.")
+    username = x.username.strip()
+    with db() as c:
+        c.execute("UPDATE scanner_credentials SET username=%s,password_hash=%s WHERE id=1", (username, hash_scanner_password(x.password)))
+        c.commit()
+    return {"ok": True, "username": username}
+
 @app.post("/api/scanner/login")
 def scanner_login(x: Login):
     if len(x.username) > 50 or len(x.password) > 100:
         raise HTTPException(400, "Input is too long")
-    if x.username.casefold() != ADMIN_USER.casefold() or x.password != ADMIN_PASS:
+    with db() as c:
+        row = c.execute("SELECT username,password_hash FROM scanner_credentials WHERE id=1").fetchone()
+    if not row or x.username.casefold() != row["username"].casefold() or not verify_scanner_password(x.password, row["password_hash"]):
         raise HTTPException(401, "Invalid credentials")
     now = datetime.now(timezone.utc)
     token = jwt.encode({

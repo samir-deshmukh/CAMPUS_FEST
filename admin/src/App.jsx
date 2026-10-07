@@ -66,7 +66,7 @@ async function api(path, options = {}) {
   }
   return res.status === 204 ? null : res.json()
 }
-const nav = [['events','Events'],['registrations','Registrations'],['gallery','Event Gallery'],['lost','Lost & Found']]
+const nav = [['events','Events'],['registrations','Registrations'],['gallery','Event Gallery'],['lost','Lost & Found'],['scanner','QR Scanner Login']]
 
 export default function App() {
   const [admin,setAdmin]=useState(()=>JSON.parse(sessionStorage.getItem('campusfest_admin_user')||'null'))
@@ -95,12 +95,20 @@ export default function App() {
   {page==='registrations'&&<Registrations events={events} selectedEvent={selectedEvent} setSelectedEvent={setSelectedEvent}/>}
   {page==='gallery'&&<Gallery notice={setNotice}/>}
   {page==='lost'&&<LostAdmin rows={lost} load={load} notice={setNotice}/>}
+  {page==='scanner'&&<ScannerCredentials notice={setNotice}/>}
   {editing&&<EventForm event={editing.id?editing:null} close={()=>setEditing(null)} load={load} notice={setNotice}/>}
   </main></div>
 }
 
 function Login({onLogin}){const[u,setU]=useState(''),[p,setP]=useState(''),[err,setErr]=useState(''),[busy,setBusy]=useState(false);const submit=async e=>{e.preventDefault();setErr('');setBusy(true);try{const r=await fetch(API+'/auth/login',{method:'POST',headers:{'Content-Type':'application/json','X-Admin-Client-ID':TAB_ID},body:JSON.stringify({username:u,password:p})});const j=await r.json();if(!r.ok)throw Error(j.detail||'Invalid credentials');if(j.role!=='ADMIN')throw Error('Administrator access required');onLogin(j)}catch(x){setErr(x.message)}finally{setBusy(false)}};return <div className="capAuth"><div className="capLogin"><div className="capHead"><div className="capMark">CF</div><div><b>CampusFest</b></div></div><div className="capRule"/><span className="badge">ADMIN LOGIN</span><h1>Sign in</h1><p className="capHint">Manage events, registrations and entry verification.</p><form onSubmit={submit}><label>Admin ID<input autoComplete="username" required maxLength="50" value={u} onChange={e=>setU(e.target.value)}/></label><label>Password<input type="password" autoComplete="current-password" required maxLength="100" value={p} onChange={e=>setP(e.target.value)}/></label>{err&&<div className="error">{err}</div>}<button className="primary" disabled={busy}>{busy?'Signing in…':'Login'}</button></form></div></div>}
 
+
+function ScannerCredentials({notice}){
+  const [username,setUsername]=useState(''),[secret,setSecret]=useState(''),[busy,setBusy]=useState(false)
+  useEffect(()=>{api('/admin/scanner-credentials').then(r=>setUsername(r.username)).catch(e=>notice(e.message))},[])
+  const save=async e=>{e.preventDefault();setBusy(true);try{const r=await api('/admin/scanner-credentials',{method:'POST',body:JSON.stringify({username,password:secret})});setUsername(r.username);setSecret('');notice('QR Scanner login updated.')}catch(e){notice(e.message)}finally{setBusy(false)}}
+  return <section className="content"><div className="panelHead"><div><h2>QR Scanner Login</h2><p className="muted">Control the ID and password used by the QR entry scanner website.</p></div></div><div className="panel narrow"><form onSubmit={save}><label>Scanner ID<input required maxLength="50" value={username} onChange={e=>setUsername(e.target.value)}/></label><label>New Password<input required minLength="6" maxLength="100" type="password" value={secret} onChange={e=>setSecret(e.target.value)} /></label><p className="muted">Changing the credentials affects new scanner logins.</p><div className="formActions"><button className="primary" disabled={busy}>{busy?'Saving…':'Save QR Scanner Login'}</button></div></form></div></section>
+}
 
 function Gallery({notice}){
   const [photos,setPhotos]=useState([])
