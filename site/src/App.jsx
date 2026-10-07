@@ -1,31 +1,159 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import QRCode from 'qrcode'
+import jsQR from 'jsqr'
 import './App.css'
 
-const API=import.meta.env.VITE_API_URL||'http://localhost:8080/api'
-const nav=[['events','Events'],['passes','My Passes'],['schedule','Schedule']]
-const PASS_KEY='campusfest_guest_passes'
+const API = import.meta.env.VITE_API_URL || 'http://localhost:8080/api'
 
-async function api(path,options={}){
- const res=await fetch(API+path,{...options,headers:{'Content-Type':'application/json',...(options.headers||{})}})
- if(!res.ok){let msg='Request failed';try{const j=await res.json();msg=j.message||j.error||msg}catch{}throw Error(msg)}
- return res.status===204?null:res.json()
-}
-function savedTokens(){try{return JSON.parse(localStorage.getItem(PASS_KEY)||'[]')}catch{return[]}}
-function saveToken(token){const tokens=[...new Set([...savedTokens(),token])];localStorage.setItem(PASS_KEY,JSON.stringify(tokens));return tokens}
-
-export default function App(){
- const [page,setPage]=useState('events'),[events,setEvents]=useState([]),[passes,setPasses]=useState([]),[notice,setNotice]=useState(''),[loading,setLoading]=useState(true),[selected,setSelected]=useState(null)
- const load=async()=>{setLoading(true);try{setEvents(await api('/events'));const tokens=savedTokens();const loaded=[];for(const t of tokens){try{loaded.push(await api('/registrations/me?passToken='+encodeURIComponent(t)))}catch{}}setPasses(loaded)}catch(e){setNotice(e.message)}finally{setLoading(false)}}
- useEffect(()=>{load()},[])
- const register=async form=>{const r=await api('/registrations/events/'+selected.id,{method:'POST',body:JSON.stringify(form)});saveToken(r.passToken);setPasses(p=>[r,...p]);setSelected(null);setPage('passes');setNotice('Registration confirmed. Your pass is saved on this device.')}
- const cancel=async pass=>{if(!confirm('Cancel this registration?'))return;try{await api('/registrations/me?passToken='+encodeURIComponent(pass.passToken),{method:'DELETE'});setPasses(p=>p.map(x=>x.id===pass.id?{...x,status:'CANCELLED'}:x));setNotice('Registration cancelled.')}catch(e){setNotice(e.message)}}
- return <div className="app"><aside><div className="brand"><b>CampusFest</b><span>Student Portal</span></div><div className="identity"><span className="badge">PUBLIC ACCESS</span><strong>No account required</strong><small>Browse events and register directly.</small></div><nav>{nav.map(([id,label])=><button className={page===id?'active':''} onClick={()=>setPage(id)} key={id}><i>{id==='events'?'◫':id==='passes'?'▣':'◷'}</i>{label}</button>)}</nav><div className="sideBottom"><span className="badge soft">LIVE DATA</span></div></aside><main><header><div><span className="eyebrow">CAMPUSFEST</span><h1>{page==='events'?'Discover events':page==='passes'?'My passes':'Schedule'}</h1></div><span className="badge">{events.length} PUBLISHED EVENTS</span></header>{notice&&<div className="toast">{notice}<button onClick={()=>setNotice('')}>×</button></div>}{loading?<div className="empty">Loading live data…</div>:page==='events'?<Events events={events} onRegister={setSelected}/>:page==='passes'?<Passes passes={passes} cancel={cancel}/>:<Schedule events={events}/>} {selected&&<RegistrationForm event={selected} close={()=>setSelected(null)} submit={register}/>}</main></div>
+async function api(path, options = {}) {
+  const res = await fetch(API + path, {
+    ...options,
+    headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
+  })
+  if (!res.ok) {
+    let message = 'Request failed'
+    try { const j = await res.json(); message = j.detail || j.message || j.error || message } catch {}
+    throw Error(message)
+  }
+  return res.status === 204 ? null : res.json()
 }
 
-function Events({events,onRegister}){return <section className="content"><div className="grid">{events.map(e=><article className="card" key={e.id}>{e.posterData?<img className="poster" src={e.posterData} alt="Event poster"/>:<div className="poster emptyPoster"><span className="badge">NO POSTER</span></div>}<div className="cardBody"><span className="badge">{e.category}</span><h2>{e.title}</h2><p>{e.description}</p><div className="meta"><span>◷ {new Date(e.startTime).toLocaleString()}</span><span>⌖ {e.venue}</span><span>Seats: {e.capacity}</span></div><button className="primary" onClick={()=>onRegister(e)}>Register for event</button></div></article>)}</div>{!events.length&&<div className="empty"><h2>No published events yet</h2><p>The administrator has not published an event.</p></div>}</section>}
+export default function App() {
+  const [page, setPage] = useState('events')
+  const [events, setEvents] = useState([])
+  const [selected, setSelected] = useState(null)
+  const [pass, setPass] = useState(null)
+  const [notice, setNotice] = useState('')
+  const [loading, setLoading] = useState(true)
 
-function RegistrationForm({event,close,submit}){const [form,setForm]=useState({name:'',college:'',course:'',year:'',email:'',phone:''}),[err,setErr]=useState(''),[busy,setBusy]=useState(false);const change=(k,v)=>setForm(f=>({...f,[k]:v}));const send=async e=>{e.preventDefault();setErr('');setBusy(true);try{await submit(form)}catch(x){setErr(x.message)}finally{setBusy(false)}};return <div className="modal"><div className="modalCard"><button className="close" onClick={close}>×</button><span className="badge">EVENT REGISTRATION</span><h2>{event.title}</h2><p className="muted">No account or password is required. Enter your real details to receive an entry pass.</p><form onSubmit={send} className="formGrid">{[['name','Full name'],['college','College'],['course','Course'],['year','Year'],['email','Email'],['phone','Phone']].map(([k,l])=><label key={k}>{l}<input required type={k==='email'?'email':'text'} value={form[k]} onChange={e=>change(k,e.target.value)}/></label>)}{err&&<div className="error">{err}</div>}<div className="formActions"><button type="button" className="outline" onClick={close}>Cancel</button><button className="primary" disabled={busy}>{busy?'Registering…':'Confirm registration'}</button></div></form></div></div>}
+  const load = async () => {
+    setLoading(true)
+    try { setEvents(await api('/events')) }
+    catch (e) { setNotice(e.message) }
+    finally { setLoading(false) }
+  }
+  useEffect(() => { load() }, [])
 
-function Passes({passes,cancel}){return <section className="content"><div className="grid">{passes.filter(p=>p.status==='ACTIVE').map(p=><div className="card pass" key={p.id}><div className="badges"><span className="badge">ACTIVE PASS</span><span className="badge soft">{p.course} · {p.year}</span></div><h2>{p.eventTitle}</h2><p>{p.name} · {p.college}</p><p>Registered {new Date(p.registeredAt).toLocaleString()}</p><div className="passCode">REG-{p.id}</div><button className="outline" onClick={()=>cancel(p)}>Cancel registration</button></div>)}</div>{!passes.filter(p=>p.status==='ACTIVE').length&&<div className="empty"><h2>No passes on this device</h2><p>Register for a published event and your entry pass will appear here.</p></div>}</section>}
+  const register = async form => {
+    const result = await api('/registrations/events/' + selected.id, { method: 'POST', body: JSON.stringify(form) })
+    setPass(result); setSelected(null); setPage('pass')
+    setNotice('Registration successful. Download your pass and keep it safe.')
+  }
 
-function Schedule({events}){return <section className="content"><div className="schedule">{events.map(e=><div className="scheduleRow" key={e.id}><span className="badge">{e.category}</span><div><b>{e.title}</b><small>{new Date(e.startTime).toLocaleString()} · {e.venue}</small></div></div>)}</div>{!events.length&&<div className="empty">No schedule is published yet.</div>}</section>}
+  return <div className="site">
+    <nav className="topbar"><div className="navLinks">
+      <button className={page === 'events' ? 'active' : ''} onClick={() => setPage('events')}>Events</button>
+      <button className={page === 'cancel' ? 'active' : ''} onClick={() => setPage('cancel')}>Cancel Registration</button>
+      <button className={page === 'lost' ? 'active' : ''} onClick={() => setPage('lost')}>Lost &amp; Found</button>
+    </div></nav>
+    {notice && <div className="notice">{notice}<button onClick={() => setNotice('')}>×</button></div>}
+    <main>
+      {loading && page === 'events' ? <div className="empty">Loading events…</div> :
+        page === 'events' ? <Events events={events} onRegister={setSelected} /> :
+        page === 'cancel' ? <CancelRegistration setNotice={setNotice} /> :
+        page === 'lost' ? <LostFound setNotice={setNotice} /> :
+        <Pass result={pass} />}
+    </main>
+    {selected && <RegistrationForm event={selected} close={() => setSelected(null)} submit={register} />}
+  </div>
+}
+
+function Events({ events, onRegister }) {
+  return <section className="page"><h1>Events</h1>
+    <div className="eventGrid">{events.map(e => <article className="eventCard" key={e.id}>
+      {e.posterData ? <img src={e.posterData} alt={e.title + ' poster'} /> : <div className="noPoster">No poster</div>}
+      <div className="eventBody"><h2>{e.title}</h2><p>{e.description}</p><button className="primary" onClick={() => onRegister(e)}>Register</button></div>
+    </article>)}</div>
+    {!events.length && <div className="empty"><h2>No events available</h2><p>There are no open event registrations right now.</p></div>}
+  </section>
+}
+
+function RegistrationForm({ event, close, submit }) {
+  const [form, setForm] = useState({ name: '', college: '', email: '', phone: '' })
+  const [error, setError] = useState(''), [busy, setBusy] = useState(false)
+  const change = (key, value) => setForm(f => ({ ...f, [key]: value }))
+  const send = async e => { e.preventDefault(); setError(''); setBusy(true); try { await submit(form) } catch (x) { setError(x.message) } finally { setBusy(false) } }
+  return <div className="modal"><div className="modalCard"><button className="close" onClick={close}>×</button>
+    <h2>Register for {event.title}</h2><p className="muted">{event.description}</p>
+    <form onSubmit={send}>
+      <label>Full name<input required value={form.name} onChange={e => change('name', e.target.value)} /></label>
+      <label>College<input required value={form.college} onChange={e => change('college', e.target.value)} /></label>
+      <label>Email<input required type="email" value={form.email} onChange={e => change('email', e.target.value)} /></label>
+      <label>Phone<input required value={form.phone} onChange={e => change('phone', e.target.value)} /></label>
+      {error && <div className="error">{error}</div>}
+      <div className="actions"><button type="button" className="outline" onClick={close}>Cancel</button><button className="primary" disabled={busy}>{busy ? 'Registering…' : 'Register'}</button></div>
+    </form>
+  </div></div>
+}
+
+function Pass({ result }) {
+  const canvasRef = useRef(null)
+  useEffect(() => { if (result) QRCode.toCanvas(canvasRef.current, result.passToken, { width: 180, margin: 1 }) }, [result])
+  if (!result) return <div className="page empty">No pass to display.</div>
+  const download = () => {
+    const canvas = document.createElement('canvas'); canvas.width = 900; canvas.height = 560
+    const ctx = canvas.getContext('2d'); ctx.fillStyle = '#fffdf8'; ctx.fillRect(0, 0, canvas.width, canvas.height)
+    ctx.fillStyle = '#272622'; ctx.font = '700 42px Arial'; ctx.fillText('CampusFest Entry Pass', 55, 75)
+    ctx.font = '700 28px Arial'; ctx.fillText(result.eventTitle, 55, 140)
+    ctx.font = '22px Arial'; ctx.fillText('Participant: ' + result.name, 55, 195); ctx.fillText('College: ' + result.college, 55, 235)
+    ctx.fillText('Registration ID: CF-' + result.id, 55, 275); ctx.drawImage(canvasRef.current, 650, 155, 190, 190)
+    ctx.font = '18px Arial'; ctx.fillText('Present this QR code at entry.', 55, 360)
+    const a = document.createElement('a'); a.download = 'CampusFest-Pass-' + result.id + '.png'; a.href = canvas.toDataURL('image/png'); a.click()
+  }
+  return <section className="page passPage"><div className="passCard"><h1>Registration Successful</h1><p>Your entry pass is ready.</p>
+    <div className="passDetails"><b>{result.eventTitle}</b><span>{result.name}</span><span>{result.college}</span><span>Registration ID: CF-{result.id}</span></div>
+    <canvas ref={canvasRef} className="qr" /><button className="primary" onClick={download}>Download Pass Image</button>
+  </div></section>
+}
+
+function CancelRegistration({ setNotice }) {
+  const [file, setFile] = useState(null), [busy, setBusy] = useState(false), [error, setError] = useState(''), [found, setFound] = useState(null)
+  const decode = selected => {
+    setFile(selected); setFound(null); setError('')
+    const img = new Image()
+    img.onload = () => {
+      const canvas = document.createElement('canvas')
+      const scale = Math.min(1, 1400 / Math.max(img.width, img.height))
+      canvas.width = Math.round(img.width * scale); canvas.height = Math.round(img.height * scale)
+      const ctx = canvas.getContext('2d'); ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+      const data = ctx.getImageData(0, 0, canvas.width, canvas.height)
+      const code = jsQR(data.data, data.width, data.height)
+      if (!code?.data) setError('QR code could not be read. Upload the original downloaded pass image.')
+      else setFound(code.data)
+    }
+    img.onerror = () => setError('Could not read that image.')
+    img.src = URL.createObjectURL(selected)
+  }
+  const cancel = async () => {
+    if (!found) return
+    if (!confirm('Cancel this registration? This will make the pass invalid.')) return
+    setBusy(true)
+    try { const result = await api('/registrations/me?passToken=' + encodeURIComponent(found), { method: 'DELETE' }); setNotice(result.message); setFile(null); setFound(null) }
+    catch (e) { setError(e.message) } finally { setBusy(false) }
+  }
+  return <section className="page narrow"><h1>Cancel Registration</h1><p className="muted">Upload the pass image you downloaded after registering. Its QR code identifies your registration.</p>
+    <div className="panel"><label>Upload pass image<input type="file" accept="image/png,image/jpeg,image/webp" onChange={e => e.target.files?.[0] && decode(e.target.files[0])} /></label>
+      {file && <p className="muted">{file.name}</p>}
+      {found && <div className="found"><b>Registration found</b><span>The pass is ready to be cancelled.</span><button className="danger" disabled={busy} onClick={cancel}>{busy ? 'Cancelling…' : 'Cancel Registration'}</button></div>}
+      {error && <div className="error">{error}</div>}
+    </div>
+  </section>
+}
+
+function LostFound({ setNotice }) {
+  const [items, setItems] = useState([]), [form, setForm] = useState({ type: 'LOST', item: '', description: '', location: '', contact: '' }), [busy, setBusy] = useState(false)
+  const load = async () => { try { setItems(await api('/lost-found')) } catch {} }
+  useEffect(() => { load() }, [])
+  const submit = async e => { e.preventDefault(); setBusy(true); try { await api('/lost-found', { method: 'POST', body: JSON.stringify(form) }); setForm({ type: 'LOST', item: '', description: '', location: '', contact: '' }); setNotice('Lost & Found report submitted.'); load() } catch (x) { setNotice(x.message) } finally { setBusy(false) } }
+  return <section className="page"><h1>Lost &amp; Found</h1><div className="lostGrid">
+    <div className="panel"><h2>Report an item</h2><form onSubmit={submit}>
+      <label>Report type<select value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value }))}><option value="LOST">Lost item</option><option value="FOUND">Found item</option></select></label>
+      <label>Item name<input required value={form.item} onChange={e => setForm(f => ({ ...f, item: e.target.value }))} /></label>
+      <label>Description<textarea required value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} /></label>
+      <label>Location<input required value={form.location} onChange={e => setForm(f => ({ ...f, location: e.target.value }))} /></label>
+      <label>Contact<input required value={form.contact} onChange={e => setForm(f => ({ ...f, contact: e.target.value }))} /></label>
+      <button className="primary" disabled={busy}>{busy ? 'Submitting…' : 'Submit report'}</button>
+    </form></div>
+    <div><h2>Current reports</h2><div className="reports">{items.map(x => <article className="report" key={x.id}><span className="tag">{x.type}</span><h3>{x.item}</h3><p>{x.description}</p><small>{x.location} · {x.contact}</small></article>)}</div>{!items.length && <div className="empty">No active reports.</div>}</div>
+  </div></section>
+}
