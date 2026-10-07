@@ -144,15 +144,21 @@ function CancelRegistration({ setNotice }) {
 function LostFound({ setNotice }) {
   const [items, setItems] = useState([]), [form, setForm] = useState({ type: 'FOUND', fullName: '', phone: '', item: '', description: '', location: '', foundItemImage: '' }), [claim, setClaim] = useState(null), [busy, setBusy] = useState(false), [reportError, setReportError] = useState('')
   const load = async () => { try { setItems(await api('/lost-found')) } catch {} }
-  useEffect(() => { load() }, [])
+  useEffect(() => {
+    load()
+    const timer = setInterval(load, 5000)
+    return () => clearInterval(timer)
+  }, [])
   const submit = async e => {
-    e.preventDefault(); setBusy(true)
+    e.preventDefault()
+    setReportError('')
+    setBusy(true)
     try {
       await api('/lost-found', { method: 'POST', body: JSON.stringify(form) })
       setForm({ type: 'FOUND', fullName: '', phone: '', item: '', description: '', location: '', foundItemImage: '' })
       setNotice('Report submitted')
       load()
-    } catch (x) { setNotice(x.message) } finally { setBusy(false) }
+    } catch (x) { setReportError(x.message) } finally { setBusy(false) }
   }
   const submitClaim = async e => {
     e.preventDefault(); setBusy(true)
@@ -168,14 +174,15 @@ function LostFound({ setNotice }) {
         <label>Mobile number<input required type="tel" inputMode="numeric" pattern="[6-9][0-9]{9}" maxLength="10" title="Enter a valid 10-digit Indian mobile number" value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value.replace(/\D/g, '').slice(0,10) }))} /></label>
         <label>Item name<input required maxLength="100" value={form.item} onChange={e => setForm(f => ({ ...f, item: e.target.value }))} /></label>
         <label>Description<textarea required maxLength="1000" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} /></label>
-        <label>Found location<input required value={form.location} onChange={e => setForm(f => ({ ...f, location: e.target.value }))} /></label>
-        <label>Photo of found item<input type="file" accept="image/png,image/jpeg,image/webp" onChange={e => { const f=e.target.files?.[0]; if(!f)return; if(f.size>2500000){setNotice('Photo must be 2.5 MB or smaller'); return} const r=new FileReader(); r.onload=()=>setForm(x => ({ ...x, foundItemImage:r.result })); r.readAsDataURL(f) }} /></label>
+        <label>Found location<input required maxLength="150" value={form.location} onChange={e => setForm(f => ({ ...f, location: e.target.value }))} /></label>
+        <label>Photo of found item<input type="file" accept="image/png,image/jpeg,image/webp" onChange={e => { const f=e.target.files?.[0]; if(!f)return; if(f.size>2500000){setReportError('Photo must be 2.5 MB or smaller'); e.target.value=''; return} const r=new FileReader(); r.onload=()=>setForm(x => ({ ...x, foundItemImage:r.result })); r.readAsDataURL(f) }} /></label>
+        {reportError && <div className="error">{reportError}</div>}
         <button className="primary" disabled={busy}>{busy ? 'Submitting...' : 'Report Found Item'}</button>
       </form></div>
       <div>
         <div>
           <div className="claimSection">
-            <div className="claimHeading"><h2>Found Items</h2><p className="muted">Only items verified by the admin are shown here. If you recognize your lost item, click Claim Lost Item.</p></div>
+            <div className="claimHeading"><h2>Found Items</h2><p className="muted">If you recognize your lost item, click Claim Lost Item.</p></div>
             <div className="reports">{items.filter(x => x.type === 'FOUND' && x.status === 'VERIFIED').map(x => <article className="report foundReport" key={x.id}><span className="tag">ITEM AVAILABLE</span><h3>{x.item}</h3><p>{x.description}</p><small>Available at: College Lost &amp; Found Counter</small><button className="primary claimButton" onClick={() => setClaim({ id:x.id, form:{fullName:'', phone:'', lostItemImage:''} })}>Claim Lost Item</button></article>)}</div>
             {!items.some(x => x.type === 'FOUND' && x.status === 'VERIFIED') && <div className="empty">No found items are currently available.</div>}
           </div>
