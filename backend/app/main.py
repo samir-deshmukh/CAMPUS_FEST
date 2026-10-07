@@ -109,6 +109,11 @@ class Login(BaseModel):
     username: str
     password: str
 
+class ScannerCredentialsUpdate(BaseModel):
+    username: str
+    currentPassword: str
+    newPassword: str
+
 class EventIn(BaseModel):
     title: str
     description: str
@@ -535,12 +540,15 @@ def get_scanner_credentials(_: dict = Depends(admin)):
     return {"username": row["username"] if row else ADMIN_USER}
 
 @app.post("/api/admin/scanner-credentials")
-def update_scanner_credentials(x: Login, _: dict = Depends(admin)):
-    if not x.username.strip() or len(x.username.strip()) > 50 or len(x.password) < 6 or len(x.password) > 100:
-        raise HTTPException(400, "Scanner ID must be 1-50 characters and password must be 6-100 characters.")
+def update_scanner_credentials(x: ScannerCredentialsUpdate, _: dict = Depends(admin)):
     username = x.username.strip()
+    if not username or len(username) > 50 or len(x.currentPassword) > 100 or len(x.newPassword) < 6 or len(x.newPassword) > 100:
+        raise HTTPException(400, "Scanner ID must be 1-50 characters and new password must be 6-100 characters.")
     with db() as c:
-        c.execute("UPDATE scanner_credentials SET username=%s,password_hash=%s WHERE id=1", (username, hash_scanner_password(x.password)))
+        row = c.execute("SELECT password_hash FROM scanner_credentials WHERE id=1").fetchone()
+        if not row or not verify_scanner_password(x.currentPassword, row["password_hash"]):
+            raise HTTPException(401, "Current scanner password is incorrect.")
+        c.execute("UPDATE scanner_credentials SET username=%s,password_hash=%s WHERE id=1", (username, hash_scanner_password(x.newPassword)))
         c.commit()
     return {"ok": True, "username": username}
 
