@@ -150,7 +150,7 @@ function LostFound({ setNotice }) {
     try {
       await api('/lost-found', { method: 'POST', body: JSON.stringify(form) })
       setForm({ type: 'FOUND', fullName: '', phone: '', item: '', description: '', location: '' })
-      setNotice('Found item reported. It will appear on the website only after admin verification.')
+      setNotice('Report submitted')
       load()
     } catch (x) { setNotice(x.message) } finally { setBusy(false) }
   }
@@ -175,7 +175,7 @@ function LostFound({ setNotice }) {
         <div>
           <div className="claimSection">
             <div className="claimHeading"><h2>Found Items</h2><p className="muted">Only items verified by the admin are shown here. If you recognize your lost item, click Claim Lost Item.</p></div>
-            <div className="reports">{items.filter(x => x.type === 'FOUND' && x.status === 'VERIFIED').map(x => <article className="report foundReport" key={x.id}><span className="tag">ITEM AVAILABLE</span><h3>{x.item}</h3><p>{x.description}</p><small>Available at: College Lost &amp; Found Counter</small><button className="primary claimButton" onClick={() => setClaim({ id:x.id, form:{fullName:'', phone:''} })}>Claim Lost Item</button></article>)}</div>
+            <div className="reports">{items.filter(x => x.type === 'FOUND' && x.status === 'VERIFIED').map(x => <article className="report foundReport" key={x.id}><span className="tag">ITEM AVAILABLE</span><h3>{x.item}</h3><p>{x.description}</p><small>Available at: College Lost &amp; Found Counter</small><button className="primary claimButton" onClick={() => setClaim({ id:x.id, form:{fullName:'', phone:'', lostItemImage:''} })}>Claim Lost Item</button></article>)}</div>
             {!items.some(x => x.type === 'FOUND' && x.status === 'VERIFIED') && <div className="empty">No found items are currently available.</div>}
           </div>
         </div>
@@ -193,6 +193,7 @@ function ClaimForm({ claim, setClaim, submit, close, busy }) {
     <form onSubmit={submit}>
       <label>Full name<input required value={claim.form.fullName} onChange={e => change('fullName',e.target.value)} /></label>
       <label>Mobile number<input required type="tel" inputMode="numeric" value={claim.form.phone} onChange={e => change('phone',e.target.value)} /></label>
+      <label>Image of your lost item<input type="file" accept="image/png,image/jpeg,image/webp" onChange={e => { const f=e.target.files?.[0]; if(!f)return; if(f.size>2500000)return; const r=new FileReader(); r.onload=()=>change('lostItemImage',r.result); r.readAsDataURL(f) }} /></label>
       <div className="formActions"><button type="button" className="outline" onClick={close}>Cancel</button><button className="primary" disabled={busy}>{busy ? 'Submitting…' : 'Claim'}</button></div>
     </form>
   </div></div>

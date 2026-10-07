@@ -73,6 +73,7 @@ with db() as c:
       phone TEXT NOT NULL,
       identification_details TEXT NOT NULL,
       lost_when_where TEXT DEFAULT '',
+      lost_item_image TEXT DEFAULT '',
       status TEXT NOT NULL DEFAULT 'PENDING',
       created_at TEXT NOT NULL
     );
@@ -80,6 +81,9 @@ with db() as c:
     cols = {r[1] for r in c.execute("PRAGMA table_info(registrations)")}
     if "entry_status" not in cols:
         c.execute("ALTER TABLE registrations ADD COLUMN entry_status TEXT NOT NULL DEFAULT 'NOT_ENTERED'")
+    claim_cols = {r[1] for r in c.execute("PRAGMA table_info(lost_found_claims)")}
+    if "lost_item_image" not in claim_cols:
+        c.execute("ALTER TABLE lost_found_claims ADD COLUMN lost_item_image TEXT DEFAULT ''")
 
 class Login(BaseModel):
     username: str
@@ -114,6 +118,7 @@ class LostFoundClaimIn(BaseModel):
     phone: str = ''
     identificationDetails: str = ''
     lostWhenWhere: str = ''
+    lostItemImage: str = ''
 
 def admin(authorization: str | None = Header(None)):
     if not authorization or not authorization.startswith("Bearer "):
@@ -151,8 +156,8 @@ def claim_json(r):
         "college": r["college"], "course": r["course"], "year": r["year"],
         "email": r["email"], "phone": r["phone"],
         "identificationDetails": r["identification_details"],
-        "lostWhenWhere": r["lost_when_where"], "status": r["status"],
-        "createdAt": r["created_at"]
+        "lostWhenWhere": r["lost_when_where"], "lostItemImage": r["lost_item_image"] or "",
+        "status": r["status"], "createdAt": r["created_at"]
     }
 
 @app.get("/health")
@@ -401,9 +406,9 @@ def claim_lost_item(item_id: int, x: LostFoundClaimIn):
         item = c.execute("SELECT * FROM lost_found WHERE id=? AND type='FOUND' AND status='VERIFIED'", (item_id,)).fetchone()
         if not item: raise HTTPException(404, "Found item is no longer available for claiming")
         cur = c.execute(
-            """INSERT INTO lost_found_claims(item_id,full_name,college,course,year,email,phone,identification_details,lost_when_where,status,created_at)
-               VALUES(?,?,?,?,?,?,?,?,?,?,?)""",
-            (item_id,x.fullName.strip(),x.college.strip(),x.course.strip(),x.year.strip(),x.email.strip(),x.phone.strip(),x.identificationDetails.strip(),x.lostWhenWhere.strip(),"PENDING",now)
+            """INSERT INTO lost_found_claims(item_id,full_name,college,course,year,email,phone,identification_details,lost_when_where,lost_item_image,status,created_at)
+               VALUES(?,?,?,?,?,?,?,?,?,?,?,?)""",
+            (item_id,x.fullName.strip(),x.college.strip(),x.course.strip(),x.year.strip(),x.email.strip(),x.phone.strip(),x.identificationDetails.strip(),x.lostWhenWhere.strip(),x.lostItemImage.strip(),"PENDING",now)
         )
         c.commit()
         return {"ok": True, "message": "Claim submitted. Please collect your item from the College Lost & Found Counter.", "claimId": cur.lastrowid}
