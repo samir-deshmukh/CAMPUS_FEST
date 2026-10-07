@@ -60,9 +60,10 @@ def init_db():
         c.execute("ALTER TABLE lost_found_claims ADD COLUMN IF NOT EXISTS lost_item_image TEXT DEFAULT ''")
         c.execute("""
         CREATE TABLE IF NOT EXISTS admin_active_lock(
-          admin_key TEXT PRIMARY KEY,
+          admin_key TEXT NOT NULL,
           client_id TEXT NOT NULL,
-          updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          PRIMARY KEY(admin_key, client_id)
         );
         CREATE TABLE IF NOT EXISTS scanner_credentials(
           id INTEGER PRIMARY KEY CHECK (id=1),
@@ -79,6 +80,8 @@ def init_db():
         """)
         c.execute("ALTER TABLE event_gallery ALTER COLUMN event_id DROP NOT NULL")
         c.execute("ALTER TABLE event_gallery ADD COLUMN IF NOT EXISTS description TEXT NOT NULL DEFAULT ''")
+        c.execute("ALTER TABLE admin_active_lock DROP CONSTRAINT IF EXISTS admin_active_lock_pkey")
+        c.execute("ALTER TABLE admin_active_lock ADD PRIMARY KEY(admin_key, client_id)")
         c.execute("UPDATE registrations SET course=college WHERE (course IS NULL OR course='') AND college IS NOT NULL AND college<>''")
 
 
@@ -186,6 +189,7 @@ class LostFoundClaimIn(BaseModel):
 # A closed/crashed tab stops heartbeats. The lock is therefore considered stale
 # shortly after the heartbeat window rather than waiting a long time.
 ADMIN_LOCK_TTL_SECONDS = 30
+ADMIN_MAX_SESSIONS = 2
 ADMIN_TAB_HEADER = "X-Admin-Client-ID"
 
 
@@ -195,25 +199,41 @@ def _valid_admin_client_id(value: str | None) -> str | None:
 
 
 def _acquire_admin_lock(connection, client_id: str):
+    admin_key = ADMIN_USER.casefold()
+    # Serialize admission so simultaneous logins cannot exceed the two-session limit.
+    connection.execute("SELECT pg_advisory_xact_lock(hashtext(%s))", (admin_key,))
+    connection.execute(
+        "DELETE FROM admin_active_lock WHERE admin_key=%s AND updated_at < CURRENT_TIMESTAMP - (%s * INTERVAL '1 second')",
+        (admin_key, ADMIN_LOCK_TTL_SECONDS),
+    )
+    existing = connection.execute(
+        "SELECT client_id FROM admin_active_lock WHERE admin_key=%s AND client_id=%s",
+        (admin_key, client_id),
+    ).fetchone()
+    if existing:
+        return connection.execute(
+            "UPDATE admin_active_lock SET updated_at=CURRENT_TIMESTAMP WHERE admin_key=%s AND client_id=%s RETURNING client_id",
+            (admin_key, client_id),
+        ).fetchone()
+    count = connection.execute(
+        "SELECT COUNT(*) AS n FROM admin_active_lock WHERE admin_key=%s",
+        (admin_key,),
+    ).fetchone()["n"]
+    if count >= ADMIN_MAX_SESSIONS:
+        return None
     return connection.execute(
-        """INSERT INTO admin_active_lock(admin_key,client_id,updated_at)
-           VALUES(%s,%s,CURRENT_TIMESTAMP)
-           ON CONFLICT(admin_key) DO UPDATE
-           SET client_id=EXCLUDED.client_id, updated_at=CURRENT_TIMESTAMP
-           WHERE admin_active_lock.client_id=EXCLUDED.client_id
-              OR admin_active_lock.updated_at < CURRENT_TIMESTAMP - (%s * INTERVAL '1 second')
-           RETURNING client_id""",
-        (ADMIN_USER.casefold(), client_id, ADMIN_LOCK_TTL_SECONDS),
+        "INSERT INTO admin_active_lock(admin_key,client_id,updated_at) VALUES(%s,%s,CURRENT_TIMESTAMP) RETURNING client_id",
+        (admin_key, client_id),
     ).fetchone()
 
 
 def _require_admin_lock(connection, client_id: str):
     row = connection.execute(
-        "SELECT client_id FROM admin_active_lock WHERE admin_key=%s AND updated_at >= CURRENT_TIMESTAMP - (%s * INTERVAL '1 second')",
-        (ADMIN_USER.casefold(), ADMIN_LOCK_TTL_SECONDS),
+        "SELECT client_id FROM admin_active_lock WHERE admin_key=%s AND client_id=%s AND updated_at >= CURRENT_TIMESTAMP - (%s * INTERVAL '1 second')",
+        (ADMIN_USER.casefold(), client_id, ADMIN_LOCK_TTL_SECONDS),
     ).fetchone()
-    if not row or row["client_id"] != client_id:
-        raise HTTPException(409, "Admin panel is active in another browser/tab. Use the tab that signed in.")
+    if not row:
+        raise HTTPException(409, "Admin session limit reached or this admin session is no longer active.")
 
 
 def admin(authorization: str | None = Header(None), x_admin_client_id: str | None = Header(None, alias=ADMIN_TAB_HEADER)):
