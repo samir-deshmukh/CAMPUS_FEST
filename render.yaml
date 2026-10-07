@@ -1,0 +1,40 @@
+services:
+  - type: web
+    name: Sai-Backend
+    runtime: docker
+    plan: free
+    repo: https://github.com/samir-deshmukh/Sai
+    branch: main
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    healthCheckPath: /actuator/health
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: Sai-CampusFest-DB
+          property: connectionString
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+  - type: web
+    name: Sai-Student
+    runtime: static
+    buildCommand: cd site && npm ci && npm run build
+    staticPublishPath: site/dist
+    envVars:
+      - key: VITE_API_URL
+        value: https://sai-backend.onrender.com/api
+  - type: web
+    name: Sai
+    runtime: static
+    buildCommand: cd admin && npm ci && npm run build
+    staticPublishPath: admin/dist
+    envVars:
+      - key: VITE_API_URL
+        value: https://sai-backend.onrender.com/api
+databases:
+  - name: Sai-CampusFest-DB
+    plan: free
+    region: singapore
+    postgresMajorVersion: '16'

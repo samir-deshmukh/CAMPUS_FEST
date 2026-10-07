@@ -13,11 +13,11 @@ public class EventController {
     private final EventService service;
     public EventController(EventService service){this.service=service;}
     @GetMapping public List<EventResponse> list(){return service.published();}
-    @GetMapping("/all") @PreAuthorize("hasAnyRole('ORGANIZER','ADMIN')") public List<EventResponse> all(){return service.all();}
+    @GetMapping("/all") @PreAuthorize("hasRole('ADMIN')") public List<EventResponse> all(){return service.all();}
     @GetMapping("/{id}") public EventResponse get(@PathVariable Long id){return service.get(id);}
-    @PostMapping @PreAuthorize("hasAnyRole('ORGANIZER','ADMIN')")
+    @PostMapping @PreAuthorize("hasRole('ADMIN')")
     public EventResponse create(@Valid @RequestBody EventRequest r,org.springframework.security.core.Authentication a){return service.create(r,a.getName());}
-    @PutMapping("/{id}") @PreAuthorize("hasAnyRole('ORGANIZER','ADMIN')")
+    @PutMapping("/{id}") @PreAuthorize("hasRole('ADMIN')")
     public EventResponse update(@PathVariable Long id,@Valid @RequestBody EventRequest r,org.springframework.security.core.Authentication a){return service.update(id,r,a.getName());}
-    @DeleteMapping("/{id}") @PreAuthorize("hasAnyRole('ORGANIZER','ADMIN')") public void delete(@PathVariable Long id,org.springframework.security.core.Authentication a){service.delete(id,a.getName());}
+    @DeleteMapping("/{id}") @PreAuthorize("hasRole('ADMIN')") public void delete(@PathVariable Long id,org.springframework.security.core.Authentication a){service.delete(id,a.getName());}
 }

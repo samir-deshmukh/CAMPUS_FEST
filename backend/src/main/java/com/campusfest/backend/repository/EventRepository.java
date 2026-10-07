@@ -12,6 +12,7 @@ import java.util.Optional;
 public interface EventRepository extends JpaRepository<Event, Long> {
     List<Event> findByStatusOrderByStartTimeAsc(EventStatus status);
     List<Event> findAllByOrderByStartTimeAsc();
+    long countByStatus(EventStatus status);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select e from Event e where e.id = :id")

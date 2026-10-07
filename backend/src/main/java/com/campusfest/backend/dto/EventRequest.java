@@ -7,6 +7,7 @@ import java.time.Instant;
 public record EventRequest(
         @NotBlank @Size(max=160) String title,
         @NotBlank @Size(max=4000) String description,
+        @Size(max=3000000) String posterData,
         @NotBlank @Size(max=80) String category,
         @NotBlank @Size(max=160) String venue,
         @NotNull Instant startTime,

@@ -14,6 +14,7 @@ public class Event {
     private Long id;
     @Column(nullable = false, length = 160) private String title;
     @Column(nullable = false, length = 4000) private String description;
+    @Lob @Column(columnDefinition = "TEXT") private String posterData;
     @Column(nullable = false, length = 80) private String category;
     @Column(nullable = false, length = 160) private String venue;
     @Column(nullable = false) private Instant startTime;
@@ -28,6 +29,7 @@ public class Event {
     @PreUpdate void onUpdate() { updatedAt = Instant.now(); }
     public Long getId(){return id;} public String getTitle(){return title;} public void setTitle(String v){title=v;}
     public String getDescription(){return description;} public void setDescription(String v){description=v;}
+    public String getPosterData(){return posterData;} public void setPosterData(String v){posterData=v;}
     public String getCategory(){return category;} public void setCategory(String v){category=v;}
     public String getVenue(){return venue;} public void setVenue(String v){venue=v;}
     public Instant getStartTime(){return startTime;} public void setStartTime(Instant v){startTime=v;}

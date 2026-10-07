@@ -33,5 +33,5 @@ public class EventService {
         User u=users.findByEmailIgnoreCase(email).orElseThrow(()->new ResponseStatusException(HttpStatus.UNAUTHORIZED,"User not found"));
         if(u.getRole()!=com.campusfest.backend.entity.Role.ADMIN && !e.getCreatedBy().getId().equals(u.getId())) throw new ResponseStatusException(HttpStatus.FORBIDDEN,"You do not manage this event");
     }
-    private void apply(Event e,EventRequest r){e.setTitle(r.title().trim());e.setDescription(r.description().trim());e.setCategory(r.category().trim());e.setVenue(r.venue().trim());e.setStartTime(r.startTime());e.setEndTime(r.endTime());e.setCapacity(r.capacity());e.setStatus(r.status()==null?EventStatus.DRAFT:r.status());}
+    private void apply(Event e,EventRequest r){e.setTitle(r.title().trim());e.setDescription(r.description().trim());e.setPosterData(r.posterData());e.setCategory(r.category().trim());e.setVenue(r.venue().trim());e.setStartTime(r.startTime());e.setEndTime(r.endTime());e.setCapacity(r.capacity());e.setStatus(r.status()==null?EventStatus.DRAFT:r.status());}
 }
