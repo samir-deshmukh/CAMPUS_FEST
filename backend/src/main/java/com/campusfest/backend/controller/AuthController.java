@@ -28,8 +28,8 @@ public class AuthController {
     @PostMapping("/login")
     public AuthResponse login(@Valid @RequestBody LoginRequest request) {
         try {
-            Authentication auth=authenticationManager.authenticate(new UsernamePasswordAuthenticationToken(request.email().toLowerCase().trim(),request.password()));
-            User user=users.findByEmailIgnoreCase(auth.getName()).orElseThrow(()->new BadCredentialsException("Invalid credentials"));
+            Authentication auth=authenticationManager.authenticate(new UsernamePasswordAuthenticationToken(request.username().trim(),request.password()));
+            User user=users.findByUsernameIgnoreCase(auth.getName()).orElseThrow(()->new BadCredentialsException("Invalid credentials"));
             if(user.getRole()!=Role.ADMIN) throw new BadCredentialsException("Admin login required");
             return new AuthResponse(jwtService.createToken(user),user.getId(),user.getName(),user.getEmail(),user.getRole().name());
         } catch(Exception e) {

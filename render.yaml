@@ -13,7 +13,7 @@ services:
         fromDatabase:
           name: Sai-CampusFest-DB
           property: connectionString
-      - key: ADMIN_EMAIL
+      - key: ADMIN_USERNAME
         sync: false
       - key: ADMIN_PASSWORD
         sync: false

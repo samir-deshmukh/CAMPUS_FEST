@@ -14,11 +14,12 @@ public class CampusFestBackendApplication {
     @Bean
     CommandLineRunner adminBootstrap(UserRepository users, PasswordEncoder encoder) {
         return args -> {
-            String email = System.getenv("ADMIN_EMAIL");
+            String username = System.getenv("ADMIN_USERNAME");
             String password = System.getenv("ADMIN_PASSWORD");
-            if (email == null || email.isBlank() || password == null || password.length() < 8) return;
-            if (users.existsByEmailIgnoreCase(email)) return;
-            User admin = new User(); admin.setName("CampusFest Administrator"); admin.setEmail(email);
+            if (username == null || username.isBlank() || password == null || password.length() < 8) return;
+            if (users.existsByUsernameIgnoreCase(username)) return;
+            User admin = new User(); admin.setName("CampusFest Administrator"); admin.setUsername(username.trim());
+            admin.setEmail(username.trim().toLowerCase() + "@campusfest.local");
             admin.setPasswordHash(encoder.encode(password)); admin.setRole(Role.ADMIN); users.save(admin);
         };
     }
