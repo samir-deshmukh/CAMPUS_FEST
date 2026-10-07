@@ -32,7 +32,7 @@ export default function App() {
     catch (e) { setNotice(e.message) }
     finally { setLoading(false) }
   }
-  useEffect(() => { load() }, [])
+  useEffect(() => { load(); const timer=setInterval(load,5000); return()=>clearInterval(timer) }, [])
   useEffect(() => { if (!notice) return; const timer = setTimeout(() => setNotice(''), 3000); return () => clearTimeout(timer) }, [notice])
 
   const register = async form => {
