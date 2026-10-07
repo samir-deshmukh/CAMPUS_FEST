@@ -70,17 +70,16 @@ function Events({ events, onRegister }) {
 }
 
 function RegistrationForm({ event, close, submit }) {
-  const [form, setForm] = useState({ name: '', college: '', email: '', phone: '' })
+  const [form, setForm] = useState({ name: '', course: '', phone: '' })
   const [error, setError] = useState(''), [busy, setBusy] = useState(false)
   const change = (key, value) => setForm(f => ({ ...f, [key]: value }))
   const send = async e => { e.preventDefault(); setError(''); setBusy(true); try { await submit(form) } catch (x) { setError(x.message) } finally { setBusy(false) } }
   return <div className="modal"><div className="modalCard"><button className="close" onClick={close}>×</button>
     <h2>Register for {event.title}</h2><p className="muted">{event.description}</p>
     <form onSubmit={send}>
-      <label>Full name<input required value={form.name} onChange={e => change('name', e.target.value)} /></label>
-      <label>College<input required value={form.college} onChange={e => change('college', e.target.value)} /></label>
-      <label>Email<input required type="email" value={form.email} onChange={e => change('email', e.target.value)} /></label>
-      <label>Phone<input required value={form.phone} onChange={e => change('phone', e.target.value)} /></label>
+      <label>Full name<input required maxLength="100" value={form.name} onChange={e => change('name', e.target.value)} /></label>
+      <label>Course<input required maxLength="100" value={form.course} onChange={e => change('course', e.target.value)} /></label>
+      <label>Phone<input required type="tel" inputMode="numeric" pattern="[6-9][0-9]{9}" maxLength="10" title="Enter a valid 10-digit Indian mobile number" value={form.phone} onChange={e => change('phone', e.target.value.replace(/\D/g, '').slice(0,10))} /></label>
       {error && <div className="error">{error}</div>}
       <div className="actions"><button type="button" className="outline" onClick={close}>Cancel</button><button className="primary" disabled={busy}>{busy ? 'Registering…' : 'Register'}</button></div>
     </form>
@@ -96,13 +95,13 @@ function Pass({ result }) {
     const ctx = canvas.getContext('2d'); ctx.fillStyle = '#fffdf8'; ctx.fillRect(0, 0, canvas.width, canvas.height)
     ctx.fillStyle = '#272622'; ctx.font = '700 42px Arial'; ctx.fillText('CampusFest Entry Pass', 55, 75)
     ctx.font = '700 28px Arial'; ctx.fillText(result.eventTitle, 55, 140)
-    ctx.font = '22px Arial'; ctx.fillText('Participant: ' + result.name, 55, 195); ctx.fillText('College: ' + result.college, 55, 235)
+    ctx.font = '22px Arial'; ctx.fillText('Participant: ' + result.name, 55, 195); ctx.fillText('Course: ' + result.course, 55, 235)
     ctx.fillText('Registration ID: CF-' + result.id, 55, 275); ctx.drawImage(canvasRef.current, 650, 155, 190, 190)
     ctx.font = '18px Arial'; ctx.fillText('Present this QR code at entry.', 55, 360)
     const a = document.createElement('a'); a.download = 'CampusFest-Pass-' + result.id + '.png'; a.href = canvas.toDataURL('image/png'); a.click()
   }
   return <section className="page passPage"><div className="passCard"><h1>Registration Successful</h1><p>Your entry pass is ready.</p>
-    <div className="passDetails"><b>{result.eventTitle}</b><span>{result.name}</span><span>{result.college}</span><span>Registration ID: CF-{result.id}</span></div>
+    <div className="passDetails"><b>{result.eventTitle}</b><span>{result.name}</span><span>{result.course}</span><span>Registration ID: CF-{result.id}</span></div>
     <canvas ref={canvasRef} className="qr" /><button className="primary" onClick={download}>Download Pass Image</button>
   </div></section>
 }
@@ -216,7 +215,7 @@ function ClaimForm({ claim, setClaim, submit, close, busy }) {
     <span className="badge">CLAIM LOST ITEM</span><h2>Claim Lost Item</h2>
     <p className="muted">Enter your full name and mobile number to claim this item.</p>
     <form onSubmit={submit}>
-      <label>Full name<input required value={claim.form.fullName} onChange={e => change('fullName',e.target.value)} /></label>
+      <label>Full name<input required maxLength="100" value={claim.form.fullName} onChange={e => change('fullName',e.target.value)} /></label>
       <label>Mobile number<input required type="tel" inputMode="numeric" pattern="[6-9][0-9]{9}" maxLength="10" title="Enter a valid 10-digit Indian mobile number" value={claim.form.phone} onChange={e => change('phone',e.target.value.replace(/\D/g, '').slice(0,10))} /></label>
       <label>Image of your lost item<input type="file" accept="image/png,image/jpeg,image/webp" onChange={e => { const f=e.target.files?.[0]; if(!f)return; if(f.size>2500000)return; const r=new FileReader(); r.onload=()=>change('lostItemImage',r.result); r.readAsDataURL(f) }} /></label>
       {claim.error && <div className="error">{claim.error}</div>}

@@ -58,6 +58,7 @@ def init_db():
         """)
         c.execute("ALTER TABLE lost_found ADD COLUMN IF NOT EXISTS found_item_image TEXT DEFAULT ''")
         c.execute("ALTER TABLE lost_found_claims ADD COLUMN IF NOT EXISTS lost_item_image TEXT DEFAULT ''")
+        c.execute("UPDATE registrations SET course=college WHERE (course IS NULL OR course='') AND college IS NOT NULL AND college<>''")
 
 
 init_db()
@@ -74,8 +75,7 @@ class EventIn(BaseModel):
 
 class RegistrationIn(BaseModel):
     name: str
-    college: str
-    email: str
+    course: str
     phone: str
 
 BAD_WORDS = {
@@ -142,7 +142,7 @@ def event_json(r):
 def registration_json(r, include_token=True):
     out = {
         "id": r["id"], "eventTitle": r["event_title"], "name": r["name"],
-        "college": r["college"], "studentEmail": r["email"], "phone": r["phone"],
+        "course": r["course"], "phone": r["phone"],
         "status": r["status"], "registeredAt": r["registered_at"]
     }
     if include_token:
@@ -250,9 +250,7 @@ def delete_event(event_id: int, _: dict = Depends(admin)):
 @app.post("/api/registrations/events/{event_id}")
 def register(event_id: int, x: RegistrationIn):
     name = validate_text(x.name, "Name", 100)
-    college = validate_text(x.college, "College", 150)
-    if not valid_email(x.email):
-        raise HTTPException(400, "Enter a valid email address")
+    course = validate_text(x.course, "Course", 100)
     if not valid_mobile(x.phone):
         raise HTTPException(400, "Enter a valid 10-digit Indian mobile number")
     with db() as c:
@@ -261,9 +259,9 @@ def register(event_id: int, x: RegistrationIn):
         token = secrets.token_urlsafe(32)
         now = datetime.now(timezone.utc).isoformat()
         cur = c.execute(
-            """INSERT INTO registrations(event_id,name,college,email,phone,pass_token,status,entry_status,registered_at)
-               VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id""",
-            (event_id, name, college, x.email.strip(), x.phone.strip(), token, "ACTIVE", "NOT_ENTERED", now)
+            """INSERT INTO registrations(event_id,name,college,course,email,phone,pass_token,status,entry_status,registered_at)
+               VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id""",
+            (event_id, name, '', course, '', x.phone.strip(), token, "ACTIVE", "NOT_ENTERED", now)
         )
         registration_id = cur.fetchone()["id"]
         c.commit()
@@ -361,7 +359,7 @@ def scanner_verify(passToken: str, _: dict = Depends(scanner_user)):
             return {"allowed": False, "message": "This pass has already been used for entry.", "name": r["name"], "eventTitle": r["event_title"]}
         c.execute("UPDATE registrations SET entry_status='ENTERED' WHERE id=%s", (r["id"],))
         c.commit()
-        return {"allowed": True, "message": "Scan successful. Entry allowed.", "name": r["name"], "college": r["college"], "eventTitle": r["event_title"], "registrationId": "CF-" + str(r["id"])}
+        return {"allowed": True, "message": "Scan successful. Entry allowed.", "name": r["name"], "course": r["course"], "eventTitle": r["event_title"], "registrationId": "CF-" + str(r["id"])}
 
 @app.get("/api/admin/dashboard")
 def dashboard(_: dict = Depends(admin)):
