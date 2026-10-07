@@ -6,11 +6,15 @@ import './App.css'
 const API = import.meta.env.VITE_API_URL || 'http://localhost:8080/api'
 
 const limitWords = (value, max) => {
-  const matches = value.match(/\S+/g)
-  if (!matches || matches.length <= max) return value
-  const boundary = new RegExp('^\\s*(?:\\S+\\s*){' + max + '}')
-  const kept = value.match(boundary)
-  return kept ? kept[0].trimEnd() : value
+  if (typeof value !== 'string' || max <= 0) return ''
+  let count = 0
+  for (let i = 0; i < value.length; i++) {
+    if (!/\s/.test(value[i]) && (i === 0 || /\s/.test(value[i - 1]))) {
+      count++
+      if (count > max) return value.slice(0, i).replace(/\s+$/, '')
+    }
+  }
+  return value
 }
 
 async function api(path, options = {}) {

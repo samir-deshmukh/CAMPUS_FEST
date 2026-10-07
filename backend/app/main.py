@@ -89,14 +89,22 @@ def contains_bad_words(value: str) -> bool:
 def valid_mobile(value: str) -> bool:
     return bool(re.fullmatch(r"[6-9]\d{9}", value.strip()))
 
+WORD_LIMITS = {
+    "Event name": 50, "Event description": 150, "Name": 50, "Course": 50,
+    "Full name": 50, "Item name": 50, "Item description": 150,
+    "Found location": 50, "Where / when lost": 50,
+    "Identification details": 100, "College": 50,
+}
+
 def validate_text(value: str, field: str, max_len: int = 1000, required: bool = True, max_words: int | None = None):
     value = value.strip()
     if required and not value:
         raise HTTPException(400, f"{field} is required")
     if len(value) > max_len:
         raise HTTPException(400, f"{field} is too long")
-    if max_words is not None and len(re.findall(r'\S+', value)) > max_words:
-        raise HTTPException(400, f"{field} cannot exceed {max_words} words")
+    limit = max_words if max_words is not None else WORD_LIMITS.get(field)
+    if limit is not None and len(re.findall(r'\S+', value)) > limit:
+        raise HTTPException(400, f"{field} cannot exceed {limit} words")
     if contains_bad_words(value):
         raise HTTPException(400, f"Please use respectful language in {field.lower()}")
     return value
@@ -391,6 +399,14 @@ class TextCheckIn(BaseModel):
 @app.post("/api/validate-text")
 def validate_text_live(x: TextCheckIn):
     value = x.value.strip()
+    field_names = {"name":"Full name","fullName":"Full name","course":"Course","item":"Item name",
+                   "description":"Item description","location":"Found location",
+                   "lostWhenWhere":"Where / when lost","identificationDetails":"Identification details",
+                   "title":"Event name"}
+    field = field_names.get(x.field, x.field)
+    limit = WORD_LIMITS.get(field)
+    if limit is not None and len(re.findall(r'\S+', value)) > limit:
+        return {"valid": False, "message": f"{field} cannot exceed {limit} words."}
     if contains_bad_words(value):
         return {"valid": False, "message": "Please use respectful language."}
     return {"valid": True, "message": ""}
@@ -411,7 +427,7 @@ def create_lost_found(x: LostFoundIn):
     if not valid_mobile(x.phone):
         raise HTTPException(400, "Enter a valid 10-digit Indian mobile number")
     full_name = validate_text(x.fullName, "Full name", 100, True, 50)
-    item = validate_text(x.item, "Item name", 100)
+    item = validate_text(x.item, "Item name", 100, True, 50)
     description = validate_text(x.description, "Item description", 1000, True, 150)
     location = validate_text(x.location, "Found location", 150, True, 50)
     now = datetime.now(timezone.utc).isoformat()
@@ -443,8 +459,8 @@ def claim_lost_item(item_id: int, x: LostFoundClaimIn):
     email = x.email.strip()
     if email and not valid_email(email):
         raise HTTPException(400, "Enter a valid email address")
-    identification = validate_text(x.identificationDetails, "Identification details", 1000, False)
-    lost_when_where = validate_text(x.lostWhenWhere, "Where / when lost", 500, False)
+    identification = validate_text(x.identificationDetails, "Identification details", 1000, False, 100)
+    lost_when_where = validate_text(x.lostWhenWhere, "Where / when lost", 500, False, 50)
     now = datetime.now(timezone.utc).isoformat()
     with db() as c:
         item = c.execute("SELECT * FROM lost_found WHERE id=%s AND type='FOUND' AND status='VERIFIED'", (item_id,)).fetchone()
