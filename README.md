@@ -1,115 +1,61 @@
-# CampusFest – Smart Event Management Website
+# CampusFest – Smart Event Management App
 
-CampusFest is a college event-management system for event publishing, student registration, QR entry passes, event-photo gallery, lost & found, and controlled entry scanning.
+CampusFest is a college event-management project covering event discovery, registration, entry passes, competitions, judging and official results.
 
-## Current implementation
+## Current academic deliverable
+The immediate submission is an **offline React website demo**. It does not require hosting or an internet connection and is intentionally independent of the backend at runtime.
 
-The active web stack is:
+The repository also contains a **Spring Boot 4 / Java 21 backend foundation** with PostgreSQL persistence, JWT authentication, role-based authorization, event registration, entry passes, competition management, judge scoring and result publication.
 
-- `site/` – student React/Vite website
-- `admin/` – protected React/Vite admin panel
-- `scanner/` – protected QR scanner client
-- `backend/` – FastAPI + PostgreSQL API used by the three web clients
-- `mobile/` – Flutter prototype retained for future work
-- `docs/` – requirements, architecture, database, API, security and testing documentation
+The Flutter mobile application is retained in the repository as future work but is **not part of the current 3-day website deliverable**.
 
-`backend/src/main/java/` is a **legacy Spring Boot prototype**. It is not used by the current Render deployment. The production-oriented code path in this repository is `backend/app/main.py`.
+## Repository structure
+- `admin/` – offline React/Vite website demo
+- `backend/` – Spring Boot REST API and domain logic
+- `mobile/` – Flutter prototype/future client
+- `docs/` – project requirements, architecture, database, API, security, testing and user documentation
+- `DEMO.md` – quick demonstration and offline-build instructions
 
-## Local setup
-
-### Backend
-
-Required environment variables:
-
-```text
-DATABASE_URL
-SECURITY_JWT_SECRET       # at least 32 characters
-ADMIN_USERNAME
-ADMIN_PASSWORD
-SCANNER_USERNAME          # recommended for a fresh database
-SCANNER_PASSWORD          # recommended for a fresh database
-CORS_ALLOWED_ORIGINS      # comma-separated frontend origins
-```
-
-See `backend/.env.example` for the names and safe examples. Never commit real values.
-
-Run:
-
-```bash
-pip install -r backend/requirements.txt
-uvicorn app.main:app --app-dir backend --reload
-```
-
-### Student website
-
-```bash
-cd site
-npm ci
-npm run dev
-```
-
-### Admin panel
-
+## Run the website
 ```bash
 cd admin
 npm ci
 npm run dev
 ```
 
-### QR scanner
-
+Build a static version:
 ```bash
-cd scanner
-npm ci
-npm run dev
+npm run build
 ```
 
-Each frontend reads `VITE_API_URL`; without it, development falls back to `http://localhost:8080/api`.
+Then open `admin/dist/index.html` for the offline build.
 
-## Security baseline
+## Backend
+The backend targets Java 21 and PostgreSQL. Development configuration is environment-variable driven; the repository's local database defaults are development-only and must not be reused as production secrets.
 
-- JWTs are signed with a required, non-default secret.
-- Admin credentials are supplied through environment variables and compared with constant-time comparison.
-- Scanner passwords are salted and hashed with PBKDF2-HMAC-SHA256.
-- Scanner credential changes revoke existing scanner JWTs through a credential version.
-- Admin APIs require both a valid JWT and the active admin-tab identity.
-- CORS is allow-list based rather than `*`.
-- API responses receive baseline security headers.
-- Pass tokens are generated with `secrets.token_urlsafe()` and are no longer sent in URL query strings by the web clients.
-- Image inputs are restricted to PNG/JPEG/WebP and size-limited server-side.
-- Public gallery responses are capped to the newest 30 items.
-- SQL uses parameterized queries.
-- User-facing text is validated server-side; frontend validation is only a usability aid.
+## Security highlights
+- BCrypt password hashing
+- JWT-based stateless authentication
+- Role-based access control
+- Ownership checks for organizer operations
+- Student-only self-registration
+- Unique registration/pass/assignment constraints
+- Pessimistic locking for event-capacity registration
+- Cryptographically random opaque entry-pass tokens
+- Server-side judging and score validation
+- Ownership-protected result publication
 
-See `docs/SECURITY.md` for the full threat model and remaining production controls.
-
-## Verification
-
-Run from the repository root:
-
-```bash
-python3 -m py_compile backend/app/main.py
-git diff --check
-npm --prefix site ci && npm --prefix site run build
-npm --prefix admin ci && npm --prefix admin run build
-npm --prefix scanner ci && npm --prefix scanner run build
-npm --prefix admin audit --omit=dev --audit-level=moderate
-npm --prefix site audit --omit=dev --audit-level=moderate
-npm --prefix scanner audit --omit=dev --audit-level=moderate
-```
+See `docs/SECURITY.md` for the security model and production hardening requirements.
 
 ## Documentation
+- `docs/SRS.md` – requirements and acceptance criteria
+- `docs/ARCHITECTURE.md` – system architecture and boundaries
+- `docs/DATABASE.md` – entities, relationships and integrity rules
+- `docs/API.md` – backend endpoints and security model
+- `docs/SECURITY.md` – threats, controls and hardening
+- `docs/TESTING.md` – verification and manual test checklist
+- `docs/USER_GUIDE.md` – demo usage instructions
+- `docs/LIMITATIONS.md` – current limitations and future scope
 
-- `docs/SRS.md` – current requirements and scope
-- `docs/ARCHITECTURE.md` – actual runtime architecture and boundaries
-- `docs/DATABASE.md` – PostgreSQL tables and integrity rules
-- `docs/API.md` – current FastAPI endpoints
-- `docs/SECURITY.md` – security controls, findings and remaining hardening
-- `docs/TESTING.md` – automated and manual verification
-- `docs/USER_GUIDE.md` – local usage for student, admin and scanner clients
-- `docs/LIMITATIONS.md` – known limitations and future work
-- `DEMO.md` – short presentation/demo runbook
-
-## Scope statement
-
-This is an academic project. The current stack has meaningful security controls, but it should not be treated as a production service until rate limiting, centralized audit logging, stronger secret/session management, deployment headers, integration tests and independent security testing are completed.
+## Important scope statement
+This is an academic project/demo. The offline website should not be presented as a production-connected event platform. The backend is a production-oriented foundation and requires additional hardening, integration testing and deployment controls before real-world use.

@@ -1,64 +1,97 @@
 # Database Design
 
-## Technology
+## 1. Database technology
+The backend is designed for PostgreSQL using Spring Data JPA/Hibernate. Local development is configured through environment variables with PostgreSQL defaults for development only.
 
-PostgreSQL 16 is used by the active FastAPI backend. The application currently creates/updates its required tables at startup. A migration system is recommended as the schema grows.
+## 2. Main entities
+### users
+Stores authenticated accounts.
+- `id` primary key
+- `name`
+- `email` unique
+- `password_hash`
+- `role` (`STUDENT`, `ORGANIZER`, `JUDGE`, `ADMIN`)
+- `active`
+- `created_at`
 
-## Tables
+### events
+Stores college events.
+- `id` primary key
+- `title`, `description`, `category`, `venue`
+- `start_time`, `end_time`
+- `capacity`
+- `status` (`DRAFT`, `PUBLISHED`, `CANCELLED`, `COMPLETED`)
+- `created_by` → users
+- `created_at`, `updated_at`
 
-### `events`
-Stores published, draft and closed events.
+### registrations
+Connects students to events.
+- `id` primary key
+- `event_id` → events
+- `user_id` → users
+- `status` (`ACTIVE`, `CANCELLED`)
+- `registered_at`
+- unique constraint on `(event_id, user_id)`
 
-Key fields: `id`, `title`, `description`, `category`, `venue`, `start_time`, `end_time`, `capacity`, `status`, `poster_data`.
+### entry_passes
+Stores one opaque pass per registration.
+- `id` primary key
+- `registration_id` → registrations, unique
+- `token` unique, 64-character hex value
+- `status` (`ACTIVE`, `USED`, `REVOKED`)
+- `issued_at`, `checked_in_at`
 
-### `registrations`
-Stores public event registrations and opaque entry passes.
+### competitions
+Stores competitions associated with events.
+- `id` primary key
+- `event_id` → events
+- `title`, `description`
+- `status` (`DRAFT`, `OPEN`, `CLOSED`, `PUBLISHED`)
+- `created_by` → users
+- `created_at`
 
-Key fields: `id`, `event_id`, `name`, `course`, `phone`, `pass_token`, `status`, `entry_status`, `registered_at`.
+### scoring_criteria
+Defines competition scoring rules.
+- `id` primary key
+- `competition_id` → competitions
+- `name`, `description`
+- `max_score`
+- `sort_order`
 
-`pass_token` is unique.
+### judge_assignments
+Maps judges to competitions.
+- `id` primary key
+- `competition_id` → competitions
+- `judge_id` → users
+- unique `(competition_id, judge_id)`
 
-### `event_gallery`
-Stores small event photos and descriptions.
+### evaluations
+Stores one judge's total evaluation for a registration.
+- `id` primary key
+- `competition_id` → competitions
+- `registration_id` → registrations
+- `judge_id` → users
+- `total_score`
+- `submitted_at`
+- unique `(judge_id, registration_id)`
 
-Key fields: `id`, optional `event_id`, `photo_data`, `description`, `created_at`.
+### criterion_scores
+Stores the individual score for each criterion.
+- `id` primary key
+- `evaluation_id` → evaluations
+- `criterion_id` → scoring_criteria
+- `score`
+- unique `(evaluation_id, criterion_id)`
 
-### `lost_found`
-Stores found-item reports and moderation state.
+## 3. Relationships
+- One user can create many events and competitions.
+- One event has many registrations and can have many competitions.
+- One registration belongs to one user and one event and can have one entry pass.
+- One competition has many criteria, judge assignments and evaluations.
+- One evaluation belongs to one judge, one competition and one registration and contains multiple criterion scores.
 
-Key fields: `id`, `type`, `item`, `description`, `location`, `contact`, `found_item_image`, `status`, `created_at`.
+## 4. Integrity and indexing
+Foreign keys enforce relationships. Unique constraints prevent duplicate registrations, duplicate passes, duplicate judge assignments and duplicate criterion scores. Indexes are present for event time/status, registration user, pass token, competition event/status, judge assignments, and evaluations.
 
-### `lost_found_claims`
-Stores claimant information and the claim workflow.
-
-Key fields: `id`, `item_id`, `full_name`, `college`, `course`, `year`, `email`, `phone`, `identification_details`, `lost_when_where`, `lost_item_image`, `status`, `created_at`.
-
-### `scanner_credentials`
-Stores the scanner username, salted password hash, default/migration flag and credential version.
-
-The credential version is used to revoke previously issued scanner JWTs after a credential change.
-
-### `admin_active_lock`
-Stores active admin browser-tab identities and heartbeat timestamps.
-
-The primary key is `(admin_key, client_id)`.
-
-## Relationships
-
-- An event can have many registrations.
-- An event can have many gallery records.
-- A found item can have many claims.
-- A scanner credential record is singleton-style with `id = 1`.
-- Admin lock records belong to the configured admin identity.
-
-## Integrity and concurrency
-
-Foreign keys protect event/gallery and lost-found claim relationships. The registration pass token is unique.
-
-Scanner check-in runs inside a transaction and updates the entry state only after validating the pass.
-
-Admin lock acquisition uses a PostgreSQL advisory transaction lock so simultaneous login attempts cannot both exceed the configured session limit.
-
-## Privacy
-
-Registration phone numbers and lost-and-found claimant details are personal data. Production deployments should define retention, access logging, backup protection and deletion policies before real-world use.
+## 5. Concurrency
+Event registration locks the selected event row before checking capacity and creating a registration. This reduces race-condition overbooking when multiple registrations arrive concurrently.

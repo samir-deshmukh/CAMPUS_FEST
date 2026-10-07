@@ -1,84 +1,62 @@
 # Software Requirements Specification (SRS)
 
 ## 1. Purpose
+CampusFest is a college event-management system designed to centralize event discovery, registration, entry passes, competitions, judging, and published results.
 
-CampusFest is a college event-management website that centralizes event publishing, student registration, QR-based entry, event gallery content, lost-and-found workflows and controlled entry scanning.
+For the current academic deliverable, the primary user-facing artifact is an offline React website demo. The Spring Boot backend in this repository documents and implements the production-oriented API foundation.
 
-## 2. Current scope
+## 2. Scope
+### Included
+- Student event discovery and search
+- Event registration and cancellation
+- Student entry-pass workflow
+- Event schedule and venue information
+- Competition management
+- Judge assignment and scoring
+- Official result publication
+- Role-aware organizer and judge workspaces in the demo
+- Backend authentication and authorization
+- Validation and concurrency protection for registrations
 
-### Student website
-- Browse published events
-- View event posters and descriptions
-- Register with name, course and phone
-- Receive a QR entry pass
-- Download the pass as an image
-- Cancel an unused registration by uploading the pass image
-- View event gallery
-- Report found items and submit claims
-
-### Admin panel
-- Secure admin login
-- Manage events and posters
-- View registrations
-- Manage event gallery
-- Moderate Lost & Found
-- Configure scanner credentials
-- Maintain an active-tab lock
-
-### QR scanner
-- Secure scanner login
-- Select a published event
-- Scan entry QR codes using the device camera
-- Accept valid unused passes
-- Reject cancelled, wrong-event and already-used passes
+### Current deliverable boundary
+The Flutter mobile application and live deployment are intentionally outside the 3-day deliverable. The website is designed to run offline with local mock data. Backend APIs are supporting architecture and are not connected to the static demo.
 
 ## 3. Actors
+- **Student:** discovers events, registers, views passes and results.
+- **Organizer:** creates/manages events and competitions and publishes authorized results.
+- **Judge:** views assigned competitions and submits evaluations.
+- **Admin:** privileged management role with cross-competition administration rights.
 
-- **Student/public visitor:** uses the public website and registration/lost-found workflows.
-- **Administrator:** manages event and operational data.
-- **Entry scanner:** authorized event staff using the scanner client.
+## 4. Functional requirements
+| ID | Requirement | Priority |
+|---|---|---|
+| FR-01 | Users can authenticate through register/login APIs. | High |
+| FR-02 | Organizers/admins can create, update and delete events subject to ownership rules. | High |
+| FR-03 | Students can register for published events while capacity remains. | High |
+| FR-04 | Duplicate active registrations are prevented. | High |
+| FR-05 | Students can cancel their own registrations. | High |
+| FR-06 | Students can issue/retrieve an entry pass for an active registration. | High |
+| FR-07 | Organizers/admins can validate an entry pass at check-in. | High |
+| FR-08 | Organizers/admins can manage competitions. | High |
+| FR-09 | Organizers/admins can define scoring criteria and assign judges. | High |
+| FR-10 | Assigned judges can submit one validated evaluation per participant. | High |
+| FR-11 | Authorized organizers/admins can publish competition results after closure. | High |
+| FR-12 | Students can browse schedules, venues and published results in the demo. | Medium |
+| FR-13 | The website supports responsive presentation on desktop and mobile-sized screens. | Medium |
 
-## 4. Non-functional requirements
+## 5. Non-functional requirements
+- **Security:** password hashing, JWT authentication, RBAC, ownership checks, validation, opaque random pass tokens.
+- **Integrity:** database uniqueness constraints and transaction/locking for event capacity.
+- **Usability:** clear navigation, visible registration state, responsive layout and meaningful demo pages.
+- **Maintainability:** layered Spring Boot backend and separate React frontend.
+- **Offline operation:** the current website build must work without external fonts, APIs or network resources.
+- **Performance:** static frontend should load locally without a backend dependency; backend uses indexed relational entities for core lookups.
 
-- Backend authorization must not depend on frontend UI controls.
-- Secrets must be environment supplied and must not have production fallbacks in source code.
-- SQL must use parameterized statements.
-- User input must be validated on the server.
-- QR pass tokens must be cryptographically random and opaque.
-- Uploads must have server-side type and size checks.
-- CORS must be allow-list based.
-- Public responses should be bounded where data can grow without limit.
-- Documentation must describe the active Python/FastAPI architecture.
+## 6. Assumptions and constraints
+- PostgreSQL is the intended backend database.
+- Java 21 is the backend runtime target.
+- The demo uses mock data and simulated actions.
+- Production deployment would require HTTPS, managed secrets, rate limiting, monitoring and additional hardening.
 
-## 5. Data requirements
-
-PostgreSQL stores events, registrations, gallery records, lost-and-found reports/claims, scanner credentials and admin locks.
-
-## 6. Security requirements
-
-- Admin JWT authentication
-- Scanner JWT authentication
-- Server-side role separation
-- Scanner credential-version revocation
-- Active admin-session control
-- Security response headers
-- Restricted CORS
-- Parameterized SQL
-- Secure random pass tokens
-- Server-side input/image validation
-
-## 7. Out of scope / future work
-
-- Full student account management
-- Competition/judge subsystem in the active Python implementation
-- Push notifications
-- Large-scale media storage
-- Distributed rate limiting
-- Centralized audit logging
-- Independent penetration testing
-
-The repository's Java competition subsystem is retained as legacy prototype code and is not part of the current runtime requirements.
-
-## 8. Acceptance criteria
-
-The implementation is acceptable for the current academic stage when the three React clients build, the FastAPI backend passes syntax checks, security-sensitive endpoints enforce authentication, no production secret is hardcoded, dependency checks are clean where available, and documentation matches the active architecture.
+## 7. Acceptance criteria
+The current deliverable is acceptable when the static site builds successfully, navigation and demo actions work, documentation describes the actual scope, backend authorization rules compile, and no committed production secrets are used.

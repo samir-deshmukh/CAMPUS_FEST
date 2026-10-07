@@ -1,136 +1,86 @@
 # CampusFest API Reference
 
-Base URL: the deployed backend origin followed by `/api`.
+Base path: /api
 
 ## Health
 
-`GET /health`
-
-Public health check. Returns a simple service status.
+GET /health
+- Returns backend service health.
 
 ## Authentication
 
-`POST /api/auth/login`
+POST /auth/register
+- Creates a user account and stores a BCrypt password hash.
 
-Admin login. Requires JSON:
+POST /auth/login
+- Authenticates credentials and returns a JWT authentication response.
 
-```json
-{"username":"...","password":"..."}
-```
+## Events
 
-Also requires `X-Admin-Client-ID`.
+GET /events
+GET /events/{id}
+- Read event information.
 
-`POST /api/auth/admin-lock/heartbeat`
+GET /events/all
+- Organizer/Admin event listing.
 
-Refreshes an authenticated admin tab lock.
+POST /events
+PUT /events/{id}
+DELETE /events/{id}
+- Organizer/Admin event management.
 
-`POST /api/auth/admin-lock/release`
+## Registrations
 
-Releases the authenticated admin tab lock. The client may use `sendBeacon` during page close.
+POST /registrations/events/{eventId}
+- Creates an active registration and enforces event capacity.
 
-## Public events
+GET /registrations/me
+- Lists the authenticated user's registrations.
 
-`GET /api/events`
+DELETE /registrations/{id}
+- Cancels the authenticated user's own registration.
 
-Returns published events.
+## Entry passes
 
-`POST /api/registrations/events/{eventId}`
+POST /passes/registrations/{registrationId}
+- Issues a pass for an active registration.
 
-Creates a registration for a published event. The server validates the name, course and phone number and returns an opaque `passToken`.
+GET /passes/registrations/{registrationId}
+- Gets the user's pass.
 
-## Passes
+POST /passes/check-in?token={token}
+- Organizer/Admin check-in with backend token validation.
 
-`POST /api/registrations/me`
+## Competitions
 
-Request:
+GET /competitions
+GET /competitions/{id}
 
-```json
-{"passToken":"..."}
-```
+POST /competitions
+PUT /competitions/{id}
+DELETE /competitions/{id}
 
-Returns the pass associated with the token.
+POST /competitions/{id}/criteria
+GET /competitions/{id}/criteria
 
-`DELETE /api/registrations/me`
+POST /competitions/{id}/judges/{judgeId}
+GET /competitions/{id}/judges
 
-Request body is the same as above. Cancels an unused active registration.
+GET /judging/my-competitions
 
-Pass tokens are deliberately sent in request bodies by the current clients rather than query strings.
+POST /judging/competitions/{id}/evaluations
+- Judge submission; server calculates total score.
 
-## Admin events
+## Official results
 
-All require an admin JWT and `X-Admin-Client-ID`.
+POST /competitions/{id}/publish-results
+- Organizer/Admin publishes official results after competition closure.
 
-- `GET /api/events/all`
-- `POST /api/events`
-- `PUT /api/events/{eventId}`
-- `POST /api/events/{eventId}/close`
-- `POST /api/events/{eventId}/reopen`
-- `DELETE /api/events/{eventId}`
-- `GET /api/admin/dashboard`
-- `GET /api/admin/events/{eventId}/registrations`
-- `GET /api/admin/registrations`
-- `POST /api/admin/verify`
+GET /competitions/{id}/results
+- Returns published rankings without exposing raw judge evaluations.
 
-Event posters must be PNG, JPEG or WebP and are size-limited server-side.
+## API security model
 
-## Event gallery
+Protected endpoints require a valid JWT. Role checks use Spring Security method authorization and service-level ownership/business validation.
 
-- `GET /api/event-gallery` – public, newest 30 records
-- `GET /api/admin/event-gallery` – admin
-- `POST /api/admin/event-gallery` – admin upload
-- `PUT /api/admin/event-gallery/{photoId}` – admin description update
-- `DELETE /api/admin/event-gallery/{photoId}` – admin delete
-
-## Scanner
-
-`POST /api/scanner/login`
-
-Returns an 8-hour scanner JWT when configured credentials are correct.
-
-`GET /api/scanner/events`
-
-Requires a scanner JWT.
-
-`POST /api/scanner/verify`
-
-Requires a scanner JWT. Request body:
-
-```json
-{"eventId":123,"passToken":"..."}
-```
-
-The server verifies event ownership, active registration state and single-use entry state.
-
-## Scanner credential administration
-
-Admin JWT required:
-
-- `GET /api/admin/scanner-credentials`
-- `POST /api/admin/scanner-credentials`
-- `POST /api/admin/scanner-password`
-
-Changing scanner credentials increments the credential version and revokes existing scanner sessions.
-
-## Lost & Found
-
-Public:
-
-- `GET /api/lost-found`
-- `POST /api/lost-found`
-- `POST /api/lost-found/{itemId}/claim`
-- `POST /api/validate-text`
-
-Admin:
-
-- `GET /api/admin/lost-found`
-- `GET /api/admin/lost-found/claims`
-- `POST /api/admin/lost-found/{itemId}/verify`
-- `POST /api/admin/lost-found/{itemId}/resolve`
-- `POST /api/admin/lost-found/claims/{claimId}/approve`
-- `POST /api/admin/lost-found/claims/{claimId}/reject`
-
-## Security model
-
-The API does not expose a user registration endpoint. The current academic implementation uses a single environment-configured admin identity and a separately configured scanner identity. Public student registration is event participation, not an authenticated account system.
-
-All SQL parameters are bound through psycopg. Frontend validation is not treated as a security control.
+The API is designed for backend enforcement; the frontend must not be trusted to enforce permissions.
