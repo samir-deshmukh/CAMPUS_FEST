@@ -69,3 +69,6 @@ The local development database password must be supplied through environment var
 Primary threats are credential theft, unauthorized role escalation, registration abuse, QR replay, malicious input, unauthorized judge access, and accidental exposure of private evaluation data.
 
 Primary controls are password hashing, JWT authentication, backend RBAC, database constraints, transactional capacity enforcement, cryptographically random opaque QR tokens, validation, ownership checks, and controlled result publication.
+
+- Result publication is ownership-protected: an ORGANIZER may publish only results for competitions they created; ADMIN may publish any competition.
+- Self-registration is restricted to STUDENT accounts; organizer/admin accounts cannot create student registrations through the self-registration endpoint.
