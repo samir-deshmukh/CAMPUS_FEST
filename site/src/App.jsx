@@ -204,7 +204,7 @@ function LostFound({ setNotice }) {
   const submitClaim = async e => {
     e.preventDefault(); setBusy(true)
     try {
-      const result = await api('/lost-found/' + claim.id + '/claim', { method: 'POST', body: JSON.stringify(claim.form) })
+      await api('/lost-found/' + claim.id + '/claim', { method: 'POST', body: JSON.stringify(claim.form) })
       setNotice('Claim successful'); setClaim(null)
     } catch (x) { setClaim(c => ({ ...c, error: x.message })) } finally { setBusy(false) }
   }
