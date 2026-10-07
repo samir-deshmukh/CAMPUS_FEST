@@ -541,7 +541,7 @@ def verify(passToken: str, _: dict = Depends(admin)):
 def get_scanner_credentials(_: dict = Depends(admin)):
     with db() as c:
         row = c.execute("SELECT username FROM scanner_credentials WHERE id=1").fetchone()
-    return {"username": row["username"] if row else ADMIN_USER}
+    return {"username": row["username"] if row else ""}
 
 @app.post("/api/admin/scanner-credentials")
 def update_scanner_credentials(x: ScannerCredentialsUpdate, _: dict = Depends(admin)):
