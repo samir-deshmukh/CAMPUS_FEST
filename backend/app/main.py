@@ -141,7 +141,7 @@ class LostFoundClaimIn(BaseModel):
 
 # A closed/crashed tab stops heartbeats. The lock is therefore considered stale
 # shortly after the heartbeat window rather than waiting a long time.
-ADMIN_LOCK_TTL_SECONDS = 12
+ADMIN_LOCK_TTL_SECONDS = 15
 ADMIN_TAB_HEADER = "X-Admin-Client-ID"
 
 
