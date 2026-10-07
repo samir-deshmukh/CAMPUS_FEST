@@ -5,6 +5,12 @@ import './App.css'
 
 const API = import.meta.env.VITE_API_URL || 'http://localhost:8080/api'
 
+const limitWords = (value, max) => {
+  const words = value.trimStart().split(/\s+/)
+  if (value.trimStart() === '' || words.length <= max) return value
+  return words.slice(0, max).join(' ')
+}
+
 async function api(path, options = {}) {
   const res = await fetch(API + path, {
     ...options,
@@ -77,7 +83,7 @@ function RegistrationForm({ event, close, submit }) {
   return <div className="modal"><div className="modalCard"><button className="close" onClick={close}>×</button>
     <h2>Register for {event.title}</h2><p className="muted">{event.description}</p>
     <form onSubmit={send}>
-      <label>Full name<input required maxLength="100" value={form.name} onChange={e => change('name', e.target.value)} /></label>
+      <label>Full name<input required value={form.name} onChange={e => change('name', limitWords(e.target.value, 50))} /></label>
       <label>Course<input required maxLength="100" value={form.course} onChange={e => change('course', e.target.value)} /></label>
       <label>Phone<input required type="tel" inputMode="numeric" pattern="[6-9][0-9]{9}" maxLength="10" title="Enter a valid 10-digit Indian mobile number" value={form.phone} onChange={e => change('phone', e.target.value.replace(/\D/g, '').slice(0,10))} /></label>
       {error && <div className="error">{error}</div>}
@@ -186,11 +192,11 @@ function LostFound({ setNotice }) {
   return <section className="page"><h1>Lost &amp; Found</h1>
     <div className="lostGrid">
       <div className="panel"><h2>Report a Found Item</h2><p className="muted">Report items you have found. Please submit the found item at the college Lost &amp; Found counter.</p><form onSubmit={submit}>
-        <label>Full name<input required maxLength="100" className={invalidFields.fullName ? 'inputInvalid' : ''} value={form.fullName} onChange={e => updateText('fullName', e.target.value)} /></label>
+        <label>Full name<input required className={invalidFields.fullName ? 'inputInvalid' : ''} value={form.fullName} onChange={e => updateText('fullName', limitWords(e.target.value, 50))} /></label>
         <label>Mobile number<input required type="tel" inputMode="numeric" pattern="[6-9][0-9]{9}" maxLength="10" title="Enter a valid 10-digit Indian mobile number" className={form.phone.length > 0 && !/^[6-9][0-9]{9}$/.test(form.phone) ? 'inputInvalid' : ''} value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value.replace(/\D/g, '').slice(0,10) }))} /></label>
         <label>Item name<input required maxLength="100" className={invalidFields.item ? 'inputInvalid' : ''} value={form.item} onChange={e => updateText('item', e.target.value)} /></label>
-        <label>Description<textarea required maxLength="1000" className={invalidFields.description ? 'inputInvalid' : ''} value={form.description} onChange={e => updateText('description', e.target.value)} /></label>
-        <label>Found location<input required maxLength="150" className={invalidFields.location ? 'inputInvalid' : ''} value={form.location} onChange={e => updateText('location', e.target.value)} /></label>
+        <label>Description<textarea required className={invalidFields.description ? 'inputInvalid' : ''} value={form.description} onChange={e => updateText('description', limitWords(e.target.value, 150))} /></label>
+        <label>Found location<input required className={invalidFields.location ? 'inputInvalid' : ''} value={form.location} onChange={e => updateText('location', limitWords(e.target.value, 50))} /></label>
         <label>Photo of found item<input type="file" accept="image/png,image/jpeg,image/webp" onChange={e => { const f=e.target.files?.[0]; if(!f)return; if(f.size>2500000){setReportError('Photo must be 2.5 MB or smaller'); e.target.value=''; return} const r=new FileReader(); r.onload=()=>setForm(x => ({ ...x, foundItemImage:r.result })); r.readAsDataURL(f) }} /></label>
         {reportError && <div className="error">{reportError}</div>}
         <button className="primary" disabled={busy}>{busy ? 'Submitting...' : 'Report Found Item'}</button>
@@ -215,7 +221,7 @@ function ClaimForm({ claim, setClaim, submit, close, busy }) {
     <span className="badge">CLAIM LOST ITEM</span><h2>Claim Lost Item</h2>
     <p className="muted">Enter your full name and mobile number to claim this item.</p>
     <form onSubmit={submit}>
-      <label>Full name<input required maxLength="100" value={claim.form.fullName} onChange={e => change('fullName',e.target.value)} /></label>
+      <label>Full name<input required value={claim.form.fullName} onChange={e => change('fullName',limitWords(e.target.value, 50))} /></label>
       <label>Mobile number<input required type="tel" inputMode="numeric" pattern="[6-9][0-9]{9}" maxLength="10" title="Enter a valid 10-digit Indian mobile number" value={claim.form.phone} onChange={e => change('phone',e.target.value.replace(/\D/g, '').slice(0,10))} /></label>
       <label>Image of your lost item<input type="file" accept="image/png,image/jpeg,image/webp" onChange={e => { const f=e.target.files?.[0]; if(!f)return; if(f.size>2500000)return; const r=new FileReader(); r.onload=()=>change('lostItemImage',r.result); r.readAsDataURL(f) }} /></label>
       {claim.error && <div className="error">{claim.error}</div>}

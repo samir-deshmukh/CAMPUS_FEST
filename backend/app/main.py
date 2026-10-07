@@ -89,12 +89,14 @@ def contains_bad_words(value: str) -> bool:
 def valid_mobile(value: str) -> bool:
     return bool(re.fullmatch(r"[6-9]\d{9}", value.strip()))
 
-def validate_text(value: str, field: str, max_len: int = 1000, required: bool = True):
+def validate_text(value: str, field: str, max_len: int = 1000, required: bool = True, max_words: int | None = None):
     value = value.strip()
     if required and not value:
         raise HTTPException(400, f"{field} is required")
     if len(value) > max_len:
         raise HTTPException(400, f"{field} is too long")
+    if max_words is not None and len(re.findall(r'\S+', value)) > max_words:
+        raise HTTPException(400, f"{field} cannot exceed {max_words} words")
     if contains_bad_words(value):
         raise HTTPException(400, f"Please use respectful language in {field.lower()}")
     return value
@@ -193,8 +195,8 @@ def all_events(_: dict = Depends(admin)):
 
 @app.post("/api/events")
 def create_event(x: EventIn, _: dict = Depends(admin)):
-    title = validate_text(x.title, "Event name", 120)
-    description = validate_text(x.description, "Event description", 3000)
+    title = validate_text(x.title, "Event name", 120, True, 50)
+    description = validate_text(x.description, "Event description", 3000, True, 150)
     status = x.status if x.status in ("PUBLISHED", "DRAFT", "CLOSED") else "DRAFT"
     with db() as c:
         cur = c.execute(
@@ -207,8 +209,8 @@ def create_event(x: EventIn, _: dict = Depends(admin)):
 
 @app.put("/api/events/{event_id}")
 def update_event(event_id: int, x: EventIn, _: dict = Depends(admin)):
-    title = validate_text(x.title, "Event name", 120)
-    description = validate_text(x.description, "Event description", 3000)
+    title = validate_text(x.title, "Event name", 120, True, 50)
+    description = validate_text(x.description, "Event description", 3000, True, 150)
     status = x.status if x.status in ("PUBLISHED", "DRAFT", "CLOSED") else "DRAFT"
     with db() as c:
         c.execute(
@@ -408,10 +410,10 @@ def create_lost_found(x: LostFoundIn):
         raise HTTPException(400, "Full name and mobile number are required")
     if not valid_mobile(x.phone):
         raise HTTPException(400, "Enter a valid 10-digit Indian mobile number")
-    full_name = validate_text(x.fullName, "Full name", 100)
+    full_name = validate_text(x.fullName, "Full name", 100, True, 50)
     item = validate_text(x.item, "Item name", 100)
-    description = validate_text(x.description, "Item description", 1000)
-    location = validate_text(x.location, "Found location", 150)
+    description = validate_text(x.description, "Item description", 1000, True, 150)
+    location = validate_text(x.location, "Found location", 150, True, 50)
     now = datetime.now(timezone.utc).isoformat()
     with db() as c:
         cur = c.execute(
@@ -434,7 +436,7 @@ def verify_lost_found(item_id: int, _: dict = Depends(admin)):
 def claim_lost_item(item_id: int, x: LostFoundClaimIn):
     if not valid_mobile(x.phone):
         raise HTTPException(400, "Enter a valid 10-digit Indian mobile number")
-    full_name = validate_text(x.fullName, "Full name", 100)
+    full_name = validate_text(x.fullName, "Full name", 100, True, 50)
     college = validate_text(x.college, "College", 150, False)
     course = validate_text(x.course, "Course", 100, False)
     year = validate_text(x.year, "Year", 20, False)
