@@ -89,7 +89,6 @@ function LostAdmin({rows,load,notice}) {
           <div className="claimPanelHead"><div><span className="eyebrow">CLAIM #{c.id}</span><h4>Claimant details</h4></div><span className="badge">{c.status}</span></div>
           <div className="reportGrid">
             <div className="reportField"><span>Full name</span><strong>{c.fullName}</strong></div><div className="reportField"><span>Mobile</span><strong>{c.phone}</strong></div>
-            <div className="reportField"><span>Email</span><strong>{c.email||'—'}</strong></div><div className="reportField"><span>College / Course / Year</span><strong>{[c.college,c.course,c.year].filter(Boolean).join(' · ')||'—'}</strong></div>
           </div>
           <div className="reportDescription"><span>Identification</span><p>{c.identificationDetails||'—'}</p></div>
           {c.lostWhenWhere&&<div className="reportDescription"><span>Where / when lost</span><p>{c.lostWhenWhere}</p></div>}
