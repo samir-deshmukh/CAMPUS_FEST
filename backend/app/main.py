@@ -139,7 +139,9 @@ class LostFoundClaimIn(BaseModel):
     lostWhenWhere: str = ''
     lostItemImage: str = ''
 
-ADMIN_LOCK_TTL_SECONDS = 45
+# A closed/crashed tab stops heartbeats. The lock is therefore considered stale
+# shortly after the heartbeat window rather than waiting a long time.
+ADMIN_LOCK_TTL_SECONDS = 12
 ADMIN_TAB_HEADER = "X-Admin-Client-ID"
 
 
@@ -155,15 +157,15 @@ def _acquire_admin_lock(connection, client_id: str):
            ON CONFLICT(admin_key) DO UPDATE
            SET client_id=EXCLUDED.client_id, updated_at=CURRENT_TIMESTAMP
            WHERE admin_active_lock.client_id=EXCLUDED.client_id
-              OR admin_active_lock.updated_at < CURRENT_TIMESTAMP - INTERVAL '45 seconds'
+              OR admin_active_lock.updated_at < CURRENT_TIMESTAMP - (%s * INTERVAL '1 second')
            RETURNING client_id""",
-        (ADMIN_USER.casefold(), client_id),
+        (ADMIN_USER.casefold(), client_id, ADMIN_LOCK_TTL_SECONDS),
     ).fetchone()
 
 
 def _require_admin_lock(connection, client_id: str):
     row = connection.execute(
-        "SELECT client_id FROM admin_active_lock WHERE admin_key=%s AND updated_at >= CURRENT_TIMESTAMP - INTERVAL '45 seconds'",
+        "SELECT client_id FROM admin_active_lock WHERE admin_key=%s AND updated_at >= CURRENT_TIMESTAMP - INTERVAL '12 seconds'",
         (ADMIN_USER.casefold(),),
     ).fetchone()
     if not row or row["client_id"] != client_id:

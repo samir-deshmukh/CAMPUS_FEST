@@ -75,7 +75,7 @@ export default function App() {
       if(!ok && alive){setAdmin(null);setNotice('Admin panel is active in another browser/tab. Use the tab that signed in.')}
     }
     beat()
-    const timer=setInterval(beat,5000)
+    const timer=setInterval(beat,4000)
     const onLockLost=e=>{if(alive){setAdmin(null);setNotice(e.detail||'Admin panel is active in another browser/tab. Use the tab that signed in.')}}
     const release=()=>releaseAdminLock()
     window.addEventListener('campusfest-admin-lock-lost',onLockLost)
