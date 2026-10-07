@@ -112,6 +112,10 @@ class Login(BaseModel):
 class ScannerCredentialsUpdate(BaseModel):
     username: str
     currentPassword: str
+    newPassword: str = ""
+
+class ScannerPasswordUpdate(BaseModel):
+    currentPassword: str
     newPassword: str
 
 class EventIn(BaseModel):
@@ -542,15 +546,27 @@ def get_scanner_credentials(_: dict = Depends(admin)):
 @app.post("/api/admin/scanner-credentials")
 def update_scanner_credentials(x: ScannerCredentialsUpdate, _: dict = Depends(admin)):
     username = x.username.strip()
-    if not username or len(username) > 50 or len(x.currentPassword) > 100 or len(x.newPassword) < 6 or len(x.newPassword) > 100:
-        raise HTTPException(400, "Scanner ID must be 1-50 characters and new password must be 6-100 characters.")
+    if not username or len(username) > 50 or len(x.currentPassword) > 100:
+        raise HTTPException(400, "Scanner ID must be 1-50 characters.")
     with db() as c:
         row = c.execute("SELECT password_hash FROM scanner_credentials WHERE id=1").fetchone()
         if not row or not verify_scanner_password(x.currentPassword, row["password_hash"]):
             raise HTTPException(401, "Current scanner password is incorrect.")
-        c.execute("UPDATE scanner_credentials SET username=%s,password_hash=%s WHERE id=1", (username, hash_scanner_password(x.newPassword)))
+        c.execute("UPDATE scanner_credentials SET username=%s WHERE id=1", (username,))
         c.commit()
     return {"ok": True, "username": username}
+
+@app.post("/api/admin/scanner-password")
+def update_scanner_password(x: ScannerPasswordUpdate, _: dict = Depends(admin)):
+    if len(x.currentPassword) > 100 or len(x.newPassword) < 6 or len(x.newPassword) > 100:
+        raise HTTPException(400, "New password must be 6-100 characters.")
+    with db() as c:
+        row = c.execute("SELECT password_hash FROM scanner_credentials WHERE id=1").fetchone()
+        if not row or not verify_scanner_password(x.currentPassword, row["password_hash"]):
+            raise HTTPException(401, "Current scanner password is incorrect.")
+        c.execute("UPDATE scanner_credentials SET password_hash=%s WHERE id=1", (hash_scanner_password(x.newPassword),))
+        c.commit()
+    return {"ok": True}
 
 @app.post("/api/scanner/login")
 def scanner_login(x: Login):
