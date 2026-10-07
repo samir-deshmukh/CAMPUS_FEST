@@ -40,6 +40,19 @@ services:
       - key: VITE_API_URL
         value: https://sai-campusfest-backend.onrender.com/api
 
+  - type: web
+    name: Sai-QR-Scanner
+    runtime: static
+    plan: free
+    repo: https://github.com/samir-deshmukh/Sai
+    branch: main
+    buildCommand: cd scanner && npm ci && npm run build
+    staticPublishPath: scanner/dist
+    envVars:
+      - key: VITE_API_URL
+        value: https://sai-campusfest-backend.onrender.com/api
+
+
 databases:
   - name: Sai-CampusFest-DB
     plan: free

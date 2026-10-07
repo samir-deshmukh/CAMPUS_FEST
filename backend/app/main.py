@@ -49,6 +49,7 @@ with db() as c:
       phone TEXT NOT NULL,
       pass_token TEXT UNIQUE NOT NULL,
       status TEXT NOT NULL DEFAULT 'ACTIVE',
+      entry_status TEXT NOT NULL DEFAULT 'NOT_ENTERED',
       registered_at TEXT NOT NULL
     );
     CREATE TABLE IF NOT EXISTS lost_found(
@@ -76,6 +77,9 @@ with db() as c:
       created_at TEXT NOT NULL
     );
     """)
+    cols = {r[1] for r in c.execute("PRAGMA table_info(registrations)")}
+    if "entry_status" not in cols:
+        c.execute("ALTER TABLE registrations ADD COLUMN entry_status TEXT NOT NULL DEFAULT 'NOT_ENTERED'")
 
 class Login(BaseModel):
     username: str
@@ -238,9 +242,9 @@ def register(event_id: int, x: RegistrationIn):
         token = secrets.token_urlsafe(32)
         now = datetime.now(timezone.utc).isoformat()
         cur = c.execute(
-            """INSERT INTO registrations(event_id,name,college,email,phone,pass_token,status,registered_at)
-               VALUES(?,?,?,?,?,?,?,?)""",
-            (event_id, x.name.strip(), x.college.strip(), x.email.strip(), x.phone.strip(), token, "ACTIVE", now)
+            """INSERT INTO registrations(event_id,name,college,email,phone,pass_token,status,entry_status,registered_at)
+               VALUES(?,?,?,?,?,?,?,?,?)""",
+            (event_id, x.name.strip(), x.college.strip(), x.email.strip(), x.phone.strip(), token, "ACTIVE", "NOT_ENTERED", now)
         )
         c.commit()
         r = c.execute("""SELECT r.*, e.title event_title FROM registrations r
@@ -265,6 +269,19 @@ def cancel_registration(passToken: str):
         c.commit()
     return {"ok": True, "message": "Registration cancelled successfully. The pass is now invalid."}
 
+@app.get("/api/admin/events/{event_id}/registrations")
+def event_registrations(event_id: int, _: dict = Depends(admin)):
+    with db() as c:
+        event = c.execute("SELECT id,title FROM events WHERE id=?", (event_id,)).fetchone()
+        if not event: raise HTTPException(404, "Event not found")
+        rows = c.execute("""SELECT r.*, e.title event_title FROM registrations r
+                            JOIN events e ON e.id=r.event_id
+                            WHERE r.event_id=? ORDER BY r.id DESC""", (event_id,)).fetchall()
+        return {
+            "event": {"id": event["id"], "title": event["title"]},
+            "registrations": [registration_json(r, False) | {"entryStatus": r["entry_status"]} for r in rows]
+        }
+
 @app.get("/api/admin/registrations")
 def registrations(_: dict = Depends(admin)):
     with db() as c:
@@ -284,6 +301,47 @@ def verify(passToken: str, _: dict = Depends(admin)):
         "message": "Valid pass" if r["status"] == "ACTIVE" else "Registration cancelled",
         **registration_json(r, False)
     }
+
+@app.post("/api/scanner/login")
+def scanner_login(x: Login):
+    if x.username.casefold() != ADMIN_USER.casefold() or x.password != ADMIN_PASS:
+        raise HTTPException(401, "Invalid credentials")
+    now = datetime.now(timezone.utc)
+    token = jwt.encode({
+        "sub": ADMIN_USER, "role": "SCANNER", "iat": int(now.timestamp()),
+        "exp": int((now + timedelta(hours=8)).timestamp())
+    }, SECRET, algorithm="HS256")
+    return {"token": token, "username": ADMIN_USER, "role": "SCANNER"}
+
+def scanner_user(authorization: str | None = Header(None)):
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(401, "Scanner login required")
+    try:
+        payload = jwt.decode(authorization[7:], SECRET, algorithms=["HS256"])
+    except Exception:
+        raise HTTPException(401, "Invalid or expired scanner session")
+    if payload.get("role") != "SCANNER":
+        raise HTTPException(403, "Scanner access required")
+    return payload
+
+@app.post("/api/scanner/verify")
+def scanner_verify(passToken: str, _: dict = Depends(scanner_user)):
+    with db() as c:
+        c.execute("BEGIN IMMEDIATE")
+        r = c.execute("""SELECT r.*, e.title event_title FROM registrations r
+                         JOIN events e ON e.id=r.event_id WHERE r.pass_token=?""", (passToken,)).fetchone()
+        if not r:
+            c.rollback()
+            return {"allowed": False, "message": "Invalid QR. Entry denied."}
+        if r["status"] != "ACTIVE":
+            c.rollback()
+            return {"allowed": False, "message": "Registration is cancelled. Entry denied.", "name": r["name"], "eventTitle": r["event_title"]}
+        if r["entry_status"] == "ENTERED":
+            c.rollback()
+            return {"allowed": False, "message": "This pass has already been used for entry.", "name": r["name"], "eventTitle": r["event_title"]}
+        c.execute("UPDATE registrations SET entry_status='ENTERED' WHERE id=?", (r["id"],))
+        c.commit()
+        return {"allowed": True, "message": "Scan successful. Entry allowed.", "name": r["name"], "college": r["college"], "eventTitle": r["event_title"], "registrationId": "CF-" + str(r["id"])}
 
 @app.get("/api/admin/dashboard")
 def dashboard(_: dict = Depends(admin)):
