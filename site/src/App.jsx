@@ -142,14 +142,14 @@ function CancelRegistration({ setNotice }) {
 }
 
 function LostFound({ setNotice }) {
-  const [items, setItems] = useState([]), [form, setForm] = useState({ type: 'FOUND', fullName: '', phone: '', item: '', description: '', location: '' }), [claim, setClaim] = useState(null), [busy, setBusy] = useState(false)
+  const [items, setItems] = useState([]), [form, setForm] = useState({ type: 'FOUND', fullName: '', phone: '', item: '', description: '', location: '', foundItemImage: '' }), [claim, setClaim] = useState(null), [busy, setBusy] = useState(false)
   const load = async () => { try { setItems(await api('/lost-found')) } catch {} }
   useEffect(() => { load() }, [])
   const submit = async e => {
     e.preventDefault(); setBusy(true)
     try {
       await api('/lost-found', { method: 'POST', body: JSON.stringify(form) })
-      setForm({ type: 'FOUND', fullName: '', phone: '', item: '', description: '', location: '' })
+      setForm({ type: 'FOUND', fullName: '', phone: '', item: '', description: '', location: '', foundItemImage: '' })
       setNotice('Report submitted')
       load()
     } catch (x) { setNotice(x.message) } finally { setBusy(false) }
@@ -169,6 +169,7 @@ function LostFound({ setNotice }) {
         <label>Item name<input required value={form.item} onChange={e => setForm(f => ({ ...f, item: e.target.value }))} /></label>
         <label>Description<textarea required value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} /></label>
         <label>Found location<input required value={form.location} onChange={e => setForm(f => ({ ...f, location: e.target.value }))} /></label>
+        <label>Photo of found item<input type="file" accept="image/png,image/jpeg,image/webp" onChange={e => { const f=e.target.files?.[0]; if(!f)return; if(f.size>2500000){setNotice('Photo must be 2.5 MB or smaller'); return} const r=new FileReader(); r.onload=()=>setForm(x => ({ ...x, foundItemImage:r.result })); r.readAsDataURL(f) }} /></label>
         <button className="primary" disabled={busy}>{busy ? 'Submitting...' : 'Report Found Item'}</button>
       </form></div>
       <div>
