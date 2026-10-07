@@ -61,20 +61,15 @@ function LostAdmin({rows,load,notice}) {
   }
   const verify=async id=>{try{await api('/admin/lost-found/'+id+'/verify',{method:'POST'});notice('Found item verified and published.');load()}catch(e){notice(e.message)}}
   const claimAction=async(id,action)=>{try{await api('/admin/lost-found/claims/'+id+'/'+action,{method:'POST'});notice(action==='approve'?'Claim approved and item resolved.':'Claim rejected.');setOpenClaim(null);load()}catch(e){notice(e.message)}}
-  return <section className="content">
-    <div className="sectionIntro"><div><h2 className="sectionTitle">Lost &amp; Found Reports</h2></div></div>
-    <div className="eventList adminLostList">{rows.map(r=>{
+  const renderSection = (title, sectionRows, emptyText) => <section className="lostSection">
+    <div className="sectionIntro"><div><h2 className="sectionTitle">{title}</h2><span className="muted">{sectionRows.length} item{sectionRows.length===1?'':'s'}</span></div></div>
+    <div className="eventList adminLostList">{sectionRows.map(r=>{
       const pending=(r.claims||[]).filter(c=>c.status==='PENDING'), latest=pending[0]
       return <article className="adminEvent adminLostCard" key={r.id}>
         {r.found_item_image
           ? <img src={r.found_item_image} alt="Found item" className="clickableImage" onClick={()=>setLightbox(r.found_item_image)}/>
           : <div className="noPoster">No image</div>}
         <div className="adminLostInfo">
-          <div className="badges">
-            {r.status==='VERIFIED'&&<span className="badge">VERIFIED</span>}
-            {r.status==='RESOLVED'&&<span className="badge">RESOLVED</span>}
-            {pending.length>0&&<span className="badge claimAlert">{pending.length} CLAIM RECEIVED</span>}
-          </div>
           <h2>{r.item}</h2>
           <p className="adminLostDescription">{r.description}</p>
           <div className="adminLostMeta"><span><b>Name:</b> {(r.contact||'').split(' | ')[0]||'—'}</span><span><b>No:</b> {(r.contact||'').split(' | ')[1]||'—'}</span><span><b>Item:</b> {r.item}</span></div>
@@ -82,7 +77,7 @@ function LostAdmin({rows,load,notice}) {
         <div className="actions adminLostActions">
           {r.status==='PENDING'&&<button className="primary" onClick={()=>verify(r.id)}>Verify &amp; Publish</button>}
           {latest&&<button className="outline" onClick={()=>setOpenClaim(openClaim===latest.id?null:latest.id)}>{openClaim===latest.id?'Hide Claim':'View Claim'}</button>}
-          {r.status!=='PENDING'&&!latest&&<span className="muted adminNoAction">{r.status==='RESOLVED'?'No action required':'Published'}</span>}
+          {r.status==='RESOLVED'&&<span className="muted adminNoAction">No action required</span>}
         </div>
         {openClaim&&(r.claims||[]).filter(c=>c.id===openClaim).map(c=><div className="claimPanel adminLostClaim" key={c.id}>
           <div className="claimPanelHead"><div><h4>Claimant details</h4></div><span className="badge">{c.status}</span></div>
@@ -95,7 +90,19 @@ function LostAdmin({rows,load,notice}) {
         </div>)}
       </article>
     })}</div>
-    {!rows.length&&<div className="empty">No lost &amp; found reports.</div>}
+    {!sectionRows.length&&<div className="empty">{emptyText}</div>}
+  </section>
+
+  const pendingReports = rows.filter(r=>r.status==='PENDING')
+  const claimReceived = rows.filter(r=>r.status!=='RESOLVED' && (r.claims||[]).some(c=>c.status==='PENDING'))
+  const resolved = rows.filter(r=>r.status==='RESOLVED')
+  const verified = rows.filter(r=>r.status==='VERIFIED' && !(r.claims||[]).some(c=>c.status==='PENDING'))
+
+  return <section className="content">
+    {renderSection('Pending Verification', pendingReports, 'No reports waiting for verification.')}
+    {renderSection('Verified', verified, 'No verified items.')}
+    {renderSection('Claim Received', claimReceived, 'No claims received.')}
+    {renderSection('Resolved', resolved, 'No resolved items.')}
     {lightbox&&<div className="imageLightbox" onClick={()=>setLightbox(null)}><button className="close" onClick={()=>setLightbox(null)}>×</button><img src={lightbox} alt="Enlarged item"/></div>}
   </section>
 }
