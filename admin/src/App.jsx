@@ -71,7 +71,6 @@ function LostAdmin({rows,load,notice}) {
           : <div className="noPoster">No image</div>}
         <div className="adminLostInfo">
           <div className="badges">
-            <span className="badge">REPORT #{r.id}</span>
             {r.status==='VERIFIED'&&<span className="badge">VERIFIED</span>}
             {r.status==='RESOLVED'&&<span className="badge">RESOLVED</span>}
             {pending.length>0&&<span className="badge claimAlert">{pending.length} CLAIM RECEIVED</span>}
@@ -90,7 +89,6 @@ function LostAdmin({rows,load,notice}) {
           <div className="reportGrid">
             <div className="reportField"><span>Full name</span><strong>{c.fullName}</strong></div><div className="reportField"><span>Mobile</span><strong>{c.phone}</strong></div>
           </div>
-          <div className="reportDescription"><span>Identification</span><p>{c.identificationDetails||'—'}</p></div>
           {c.lostWhenWhere&&<div className="reportDescription"><span>Where / when lost</span><p>{c.lostWhenWhere}</p></div>}
           {c.lostItemImage&&<div className="reportPhoto"><span>Claimant photo</span><img className="claimImage" src={c.lostItemImage} alt="Lost item submitted by claimant"/></div>}
           {c.status==='PENDING'&&<div className="actions"><button className="outline" onClick={()=>claimAction(c.id,'reject')}>Reject Claim</button><button className="primary" onClick={()=>claimAction(c.id,'approve')}>Approve &amp; Mark Returned</button></div>}
