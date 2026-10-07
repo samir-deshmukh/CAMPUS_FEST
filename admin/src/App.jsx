@@ -4,7 +4,7 @@ import './App.css'
 
 const API = import.meta.env.VITE_API_URL || 'http://localhost:8080/api'
 async function api(path, options = {}) {
-  const token = localStorage.getItem('campusfest_admin_token')
+  const token = sessionStorage.getItem('campusfest_admin_token')
   const res = await fetch(API + path, { ...options, headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: 'Bearer ' + token } : {}), ...(options.headers || {}) } })
   if (!res.ok) { let m = 'Request failed'; try { const j = await res.json(); m = j.detail || j.message || m } catch {}; throw Error(m) }
   return res.status === 204 ? null : res.json()
@@ -12,12 +12,12 @@ async function api(path, options = {}) {
 const nav = [['events','Events'],['registrations','Registrations'],['lost','Lost & Found']]
 
 export default function App() {
-  const [admin,setAdmin]=useState(()=>JSON.parse(localStorage.getItem('campusfest_admin_user')||'null'))
+  const [admin,setAdmin]=useState(()=>JSON.parse(sessionStorage.getItem('campusfest_admin_user')||'null'))
   const [page,setPage]=useState('events'), [events,setEvents]=useState([]), [lost,setLost]=useState([]), [notice,setNotice]=useState(''), [editing,setEditing]=useState(null), [selectedEvent,setSelectedEvent]=useState(null)
   useEffect(()=>{if(!notice)return;const timer=setTimeout(()=>setNotice(''),5000);return()=>clearTimeout(timer)},[notice])
-  const load=async()=>{try{const [e,l]=await Promise.all([api('/events/all'),api('/admin/lost-found')]);setEvents(e);setLost(l)}catch(e){setNotice(e.message)}}
+  const load=async()=>{try{const [e,l]=await Promise.all([api('/events/all'),api('/admin/lost-found')]);setEvents(e);setLost(l)}catch(e){if(e.message==='Authentication required'||e.message==='Invalid or expired token'||e.message==='Admin access required'){sessionStorage.removeItem('campusfest_admin_user');sessionStorage.removeItem('campusfest_admin_token');setAdmin(null);return}setNotice(e.message)}}
   useEffect(()=>{if(!admin)return; load(); const timer=setInterval(load,5000); return()=>clearInterval(timer)},[admin])
-  if(!admin)return <Login onLogin={u=>{setAdmin(u);localStorage.setItem('campusfest_admin_user',JSON.stringify(u));localStorage.setItem('campusfest_admin_token',u.token)}}/>
+  if(!admin)return <Login onLogin={u=>{setAdmin(u);sessionStorage.setItem('campusfest_admin_user',JSON.stringify(u));sessionStorage.setItem('campusfest_admin_token',u.token)}}/>
   return <div className="app"><aside><div className="brand"><b>CampusFest</b><span>Admin Panel</span></div><nav>{nav.map(([id,label])=><button className={page===id?'active':''} onClick={()=>setPage(id)} key={id}>{label}</button>)}</nav></aside><main><header><div><span className="eyebrow">ADMIN PANEL</span><h1>{nav.find(x=>x[0]===page)?.[1]}</h1></div></header>{notice&&<div className="toast">{notice}<button onClick={()=>setNotice('')}>×</button></div>}
   {page==='events'&&<Events events={events} edit={setEditing} newEvent={()=>setEditing({})} load={load} notice={setNotice} openRegs={id=>{setSelectedEvent(id);setPage('registrations')}}/>}
   {page==='registrations'&&<Registrations events={events} selectedEvent={selectedEvent} setSelectedEvent={setSelectedEvent}/>}
