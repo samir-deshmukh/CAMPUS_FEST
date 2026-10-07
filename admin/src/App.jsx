@@ -2,112 +2,62 @@ import { useState } from 'react'
 import './App.css'
 
 const events = [
-  { id: 1, title: 'Battle of Bands', cat: 'Cultural', date: '18 Oct', time: '5:00 PM', venue: 'Main Auditorium', seats: 120, joined: 84, icon: '♫' },
-  { id: 2, title: 'Code Sprint', cat: 'Technical', date: '19 Oct', time: '10:00 AM', venue: 'Computer Lab 2', seats: 60, joined: 47, icon: '</>' },
-  { id: 3, title: 'Street Play', cat: 'Cultural', date: '19 Oct', time: '3:30 PM', venue: 'Open Amphitheatre', seats: 100, joined: 63, icon: '✦' },
-  { id: 4, title: 'Robo Race', cat: 'Technical', date: '20 Oct', time: '11:00 AM', venue: 'Innovation Block', seats: 40, joined: 28, icon: '◈' },
-  { id: 5, title: 'Photography Walk', cat: 'Arts', date: '20 Oct', time: '4:00 PM', venue: 'Campus Gate', seats: 50, joined: 31, icon: '◉' },
-  { id: 6, title: 'Quiz Arena', cat: 'Academic', date: '21 Oct', time: '2:00 PM', venue: 'Seminar Hall', seats: 80, joined: 56, icon: '?' },
+  {id:1,title:'Battle of Bands',cat:'Cultural',date:'18 Oct',time:'5:00 PM',venue:'Main Auditorium',registered:84,capacity:120,status:'Published'},
+  {id:2,title:'Code Sprint',cat:'Technical',date:'19 Oct',time:'10:00 AM',venue:'Computer Lab 2',registered:47,capacity:60,status:'Published'},
+  {id:3,title:'Street Play',cat:'Cultural',date:'19 Oct',time:'3:30 PM',venue:'Open Amphitheatre',registered:63,capacity:100,status:'Published'},
+  {id:4,title:'Robo Race',cat:'Technical',date:'20 Oct',time:'11:00 AM',venue:'Innovation Block',registered:28,capacity:40,status:'Draft'},
+  {id:5,title:'Photography Walk',cat:'Arts',date:'20 Oct',time:'4:00 PM',venue:'Campus Gate',registered:31,capacity:50,status:'Published'}
 ]
-const results = [
-  ['Battle of Bands', 'Team Resonance', '91.5', '1'],
-  ['Battle of Bands', 'The Frequency', '88.0', '2'],
-  ['Code Sprint', 'Byte Force', '94.0', '1'],
-]
-const nav = [
-  ['home','Overview'], ['events','Events'], ['schedule','Schedule'], ['passes','My Passes'],
-  ['results','Results'], ['map','Campus Map'], ['lost','Lost & Found'], ['profile','Profile']
-]
-const adminNav = [
-  ['admin','Admin Dashboard'], ['events','Events'], ['results','Results'], ['map','Campus Map'], ['lost','Lost & Found'], ['profile','Admin Profile']
-]
+const results=[['Battle of Bands','Team Resonance','91.5','1'],['Battle of Bands','The Frequency','88.0','2'],['Code Sprint','Byte Force','94.0','1']]
+const nav=[['dashboard','Dashboard'],['events','Events & Registrations'],['results','Competitions & Results'],['students','Students'],['venues','Venues'],['lost','Lost & Found'],['settings','Settings']]
 
-function App() {
-  const [page, setPage] = useState('home')
-  const [role, setRole] = useState('Student')
-  const [registered, setRegistered] = useState([2])
-  const [notice, setNotice] = useState('')
-  const [query, setQuery] = useState('')
-  const [selectedEvent, setSelectedEvent] = useState(null)
-  const [selectedPass, setSelectedPass] = useState(null)
+export default function App(){
+ const [page,setPage]=useState('dashboard'); const [notice,setNotice]=useState('')
+ return <div className="app adminApp">
+  <aside className="sidebar">
+   <div className="brand"><div className="brandMark">CF</div><div><b>CampusFest</b><span>Administrator Console</span></div></div>
+   <div className="adminIdentity"><small>ADMINISTRATOR</small><strong>CampusFest Admin</strong><span>Full platform control</span></div>
+   <nav>{nav.map(([id,label])=><button key={id} className={page===id?'active':''} onClick={()=>setPage(id)}><i>{icons[id]}</i>{label}</button>)}</nav>
+   <div className="sideBottom"><div className="secure"><b>● System secure</b><span>Single admin workspace</span></div><button className="logout" onClick={()=>setNotice('Admin session ended in this demo.')}>Sign out</button></div>
+  </aside>
+  <main>
+   <header><div className="mobileBrand">CampusFest Admin</div><div className="search">⌕ <input placeholder="Search students, events, registrations..." /></div><div className="headerActions"><span className="live">● ADMIN</span><button className="userPill"><span className="avatar small">AD</span> Admin</button></div></header>
+   {notice&&<div className="toast">{notice}<button onClick={()=>setNotice('')}>×</button></div>}
+   {page==='dashboard'&&<Dashboard go={setPage}/>}
+   {page==='events'&&<EventsAdmin setNotice={setNotice}/>}
+   {page==='results'&&<ResultsAdmin setNotice={setNotice}/>}
+   {page==='students'&&<Students/>}
+   {page==='venues'&&<Venues/>}
+   {page==='lost'&&<LostFoundAdmin setNotice={setNotice}/>}
+   {page==='settings'&&<Settings/>}
+  </main>
+ </div>
+}
 
-  const go = (p) => setPage(p)
-  const register = (id) => {
-    if (registered.includes(id)) { setNotice('You are already registered for this event.'); setPage('passes'); return }
-    const event = events.find(e => e.id === id)
-    if (event && event.joined >= event.seats) { setNotice('Registration is full for this event.'); return }
-    setRegistered([...registered, id])
-    setNotice('Registration confirmed. Your event pass is ready.')
-    setPage('passes')
-  }
+const icons={dashboard:'⌂',events:'◫',results:'◆',students:'◎',venues:'⌖',lost:'♢',settings:'⚙'}
 
-  return <div className="app">
-    <aside className="sidebar">
-      <div className="brand"><div className="brandMark">CF</div><div><b>CampusFest</b><span>Smart Event Platform</span></div></div>
-      <div className="roleBox"><small>VIEW AS</small><select value={role} onChange={e => { setRole(e.target.value); setPage(e.target.value === 'Admin' ? 'admin' : 'home'); setNotice(`${e.target.value} view enabled.`) }}><option>Student</option><option>Admin</option></select></div>
-      <nav>{(role === 'Admin' ? adminNav : nav).map(([id,label]) => <button key={id} className={page===id?'active':''} onClick={()=>go(id)}><i>{icons[id] || '◆'}</i>{label}</button>)}</nav>
-      <div className="sideBottom"><div className="miniUser" onClick={()=>go('profile')}><div className="avatar">SN</div><div><b>Samir N.</b><span>BCA · 2nd Year</span></div></div><button className="logout" onClick={()=>{setRole('Student');setPage('home');setRegistered([]);setNotice('Demo session reset.')}}>Sign out</button></div>
-    </aside>
+function Title({title,sub,action}){return <div className="pageTitle"><div><span className="eyebrow">ADMIN CONTROL CENTER</span><h1>{title}</h1><p>{sub}</p></div>{action}</div>}
+function Stat({n,l,trend}){return <div className="adminStat"><b>{n}</b><span>{l}</span>{trend&&<small>{trend}</small>}</div>}
 
-    <main>
-      <header><div className="mobileBrand">CampusFest</div><div className="search">⌕ <input value={query} onChange={e=>setQuery(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'){setPage('events')}}} placeholder="Search events, venues, results..." /></div><div className="headerActions"><button className="bell" onClick={()=>setNotice('You have 2 demo notifications: registration confirmed and results published.')}>♢</button><button className="userPill" onClick={()=>go('profile')}><span className="avatar small">SN</span> Samir <span>⌄</span></button></div></header>
-      {notice && <div className="toast">{notice}<button onClick={()=>setNotice('')}>×</button></div>}
-      {role === 'Admin' ? <>
-        {page==='admin' && <AdminDashboard go={go} />}
-        {page==='events' && <Events registered={registered} register={register} query={query} setQuery={setQuery} onDetails={setSelectedEvent} />}
-        {page==='results' && <Results />}
-        {page==='map' && <CampusMap />}
-        {page==='lost' && <LostFound />}
-        {page==='profile' && <AdminProfile />}
-      </> : <>
-        {page==='home' && <Home go={go} registered={registered} onDetails={setSelectedEvent} />}
-        {page==='events' && <Events registered={registered} register={register} query={query} setQuery={setQuery} onDetails={setSelectedEvent} />}
-        {page==='schedule' && <Schedule onDetails={setSelectedEvent} />}
-        {page==='passes' && <Passes registered={registered} onView={setSelectedPass} onBrowse={()=>go('events')} />}
-        {page==='results' && <Results />}
-        {page==='map' && <CampusMap />}
-        {page==='lost' && <LostFound />}
-        {page==='profile' && <Profile />}
-      </>}
-      {selectedEvent && <EventDetails e={selectedEvent} registered={registered.includes(selectedEvent.id)} onRegister={()=>{register(selectedEvent.id);setSelectedEvent(null)}} onClose={()=>setSelectedEvent(null)} />}
-      {selectedPass && <PassDetails e={selectedPass} onClose={()=>setSelectedPass(null)} />}
-    </main>
+function Dashboard({go}){return <section className="content"><Title title="Dashboard" sub="Monitor and control the complete CampusFest platform." action={<span className="dateChip">18–21 OCT 2026</span>}/>
+ <div className="stats dashStats"><Stat n="24" l="Total events" trend="+4 this week"/><Stat n="1,240" l="Registrations" trend="+12%"/><Stat n="684" l="Check-ins today" trend="55% of registrations"/><Stat n="312" l="Certificates issued" trend="All verified"/></div>
+ <div className="adminGrid">
+  <div className="listCard"><div className="cardHead"><div><h2>Platform activity</h2><p>Latest administrative activity</p></div><button className="linkBtn" onClick={()=>go('events')}>Manage events →</button></div>
+   {['Code Sprint registration reached 47 students','Battle of Bands check-ins reached 84','Robo Race saved as draft','3 result scores awaiting publication','New lost & found report received'].map((x,i)=><div className="activity" key={x}><b>0{i+1}</b><span>{x}<small>{i+1} hour{i?'s':''} ago</small></span></div>)}
   </div>
-}
+  <div className="actionCard"><span className="eyebrow">QUICK CONTROL</span><h2>Run the festival</h2><p>One administrator manages events, registrations, students, results, venues and campus reports.</p><button className="primary" onClick={()=>go('events')}>Manage events →</button><button className="outline darkText" onClick={()=>go('results')}>Publish results</button><button className="outline darkText" onClick={()=>go('students')}>View students</button></div>
+ </div>
+ </section>}
 
-const icons={home:'⌂',events:'◫',schedule:'◷',passes:'▣',results:'◆',map:'⌖',lost:'♢',profile:'○'}
+function EventsAdmin({setNotice}){const [filter,setFilter]=useState('All'); const list=filter==='All'?events:events.filter(e=>e.status===filter); return <section className="content"><Title title="Events & registrations" sub="Create, publish, update and monitor every event." action={<button className="primary topAction" onClick={()=>setNotice('Create-event form opened in the admin workflow.')}>+ Create event</button>}/>
+ <div className="filters"><div>{['All','Published','Draft'].map(x=><button className={filter===x?'selected':''} onClick={()=>setFilter(x)} key={x}>{x}</button>)}</div></div>
+ <div className="tableCard"><table><thead><tr><th>Event</th><th>Date / venue</th><th>Registrations</th><th>Status</th><th>Admin action</th></tr></thead><tbody>{list.map(e=><tr key={e.id}><td><b>{e.title}</b><small>{e.cat}</small></td><td>{e.date} · {e.time}<small>{e.venue}</small></td><td><strong>{e.registered}/{e.capacity}</strong><div className="miniBar"><i style={{width:(e.registered/e.capacity*100)+'%'}}/></div></td><td><span className={'status '+e.status.toLowerCase()}>{e.status}</span></td><td><button className="rowBtn" onClick={()=>setNotice(e.title+' selected for administration.')}>Manage</button></td></tr>)}</tbody></table></div>
+ </section>}
 
-function Home({go,registered,onDetails}) {
- return <section className="content">
-  <div className="heroPanel"><div><span className="eyebrow">ANNUAL COLLEGE FEST · 2026</span><h1>One campus.<br/><em>Every experience.</em></h1><p>Discover competitions, cultural events, workshops and campus activities — all in one place.</p><button className="primary" onClick={()=>go('events')}>Explore events <span>→</span></button></div><div className="heroArt"><div className="orbit one"></div><div className="orbit two"></div><strong>CF</strong></div></div>
-  <div className="sectionHead"><div><h2>Happening this week</h2><p>Popular events with seats available</p></div><button className="linkBtn" onClick={()=>go('events')}>View all →</button></div>
-  <div className="eventGrid">{events.slice(0,3).map(e=><EventCard key={e.id} e={e} registered={registered.includes(e.id)} onRegister={()=>go('events')} onDetails={onDetails} />)}</div>
-  <div className="stats"><Stat n="24" l="Events"/><Stat n="1,240" l="Students registered"/><Stat n="18" l="Competitions"/><Stat n="36" l="Campus venues"/></div>
- </section>
-}
-function Stat({n,l}){return <div><b>{n}</b><span>{l}</span></div>}
+function ResultsAdmin({setNotice}){return <section className="content"><Title title="Competitions & results" sub="Review scores and publish official results." action={<button className="primary topAction" onClick={()=>setNotice('Result publication check started.')}>Review pending →</button>}/><div className="resultNotice"><b>3 score records</b><span>Review before publishing. Published results become visible on the student website.</span></div><div className="tableCard"><table><thead><tr><th>Competition</th><th>Participant</th><th>Score</th><th>Rank</th><th>Action</th></tr></thead><tbody>{results.map(r=><tr key={r[0]+r[1]}><td>{r[0]}</td><td><b>{r[1]}</b></td><td><strong>{r[2]}/100</strong></td><td>#{r[3]}</td><td><button className="rowBtn" onClick={()=>setNotice('Score reviewed for '+r[1]+'.')}>Review</button></td></tr>)}</tbody></table></div></section>}
 
-function Events({registered,register,query,setQuery,onDetails}) {
- const [filter,setFilter]=useState('All')
- const list=(filter==='All'?events:events.filter(e=>e.cat===filter)).filter(e=>(e.title+' '+e.cat+' '+e.venue).toLowerCase().includes((query||'').toLowerCase()))
- return <section className="content"><PageTitle title="Events" sub="Find your next campus experience." />
- <div className="filters"><input value={query||''} onChange={e=>setQuery(e.target.value)} placeholder="⌕  Search events..." /><div>{['All','Cultural','Technical','Arts','Academic'].map(x=><button className={filter===x?'selected':''} onClick={()=>setFilter(x)} key={x}>{x}</button>)}</div></div>
- <div className="eventGrid wide">{list.map(e=><EventCard key={e.id} e={e} registered={registered.includes(e.id)} onRegister={()=>register(e.id)} onDetails={onDetails} />)}</div></section>
-}
-function EventCard({e,registered,onRegister,onDetails}){return <article className="eventCard" onClick={()=>onDetails?.(e)}><div className={'eventIcon '+e.cat.toLowerCase()}>{e.icon}</div><div className="eventBody"><div className="tag">{e.cat}</div><h3>{e.title}</h3><p>◷ {e.date} · {e.time}</p><p>⌖ {e.venue}</p><div className="capacity"><span>{e.joined}/{e.seats} registered</span><div><i style={{width:(e.joined/e.seats*100)+'%'}}></i></div></div><button className={registered?'registered':'primary'} onClick={evt=>{evt.stopPropagation();onRegister()}}>{registered?'Registered ✓':'Register now →'}</button></div></article>}
+function Students(){const students=[['Aarav Kulkarni','BCA · 2nd Year','8 events'],['Priya Patil','BBA · 1st Year','5 events'],['Rahul Sharma','BCA · 3rd Year','11 events'],['Neha Joshi','BSc CS · 2nd Year','6 events']];return <section className="content"><Title title="Students" sub="View registrations and participation across CampusFest."/><div className="studentGrid">{students.map(s=><div className="studentCard" key={s[0]}><div className="avatar">ST</div><div><b>{s[0]}</b><span>{s[1]}</span><small>{s[2]}</small></div><button className="linkBtn">View →</button></div>)}</div></section>}
+function Venues(){const venues=['Main Auditorium','Computer Lab 2','Open Amphitheatre','Innovation Block','Seminar Hall','Exhibition Zone'];return <section className="content"><Title title="Campus venues" sub="Manage locations used by events and activities."/><div className="venueGrid">{venues.map((v,i)=><div className="venueCard" key={v}><span>⌖</span><b>{v}</b><small>{i%2?'2 events assigned':'1 event assigned'}</small><button className="rowBtn">Manage venue</button></div>)}</div></section>}
+function LostFoundAdmin({setNotice}){const reports=['Black wallet · Library','USB drive · Computer Lab 2','Water bottle · Auditorium'];return <section className="content"><Title title="Lost & Found" sub="Review student reports and update their status."/><div className="listCard">{reports.map((r,i)=><div className="adminReport" key={r}><div><b>{r.split(' · ')[0]}</b><span>{r.split(' · ')[1]}</span></div><span className="status published">{i?'Open':'Matched'}</span><button className="rowBtn" onClick={()=>setNotice('Report marked for follow-up.')}>Manage</button></div>)}</div></section>}
+function Settings(){return <section className="content"><Title title="Settings" sub="Administrator and platform configuration."/><div className="settingsCard"><h2>Administrator account</h2><div><span>Account model<strong>Single administrator</strong></span><span>Permissions<strong>Full platform control</strong></span><span>Authentication<strong>Spring Security + JWT backend</strong></span><span>Public portal<strong>Student website is separate</strong></span></div><p>The admin console and student website are intentionally separate applications. Students never receive access to this console.</p></div></section>}
 
-function EventDetails({e,registered,onRegister,onClose}){return <div className="modalBackdrop" onClick={onClose}><div className="eventModal" onClick={x=>x.stopPropagation()}><button className="modalClose" onClick={onClose}>×</button><div className={'eventIcon '+e.cat.toLowerCase()}>{e.icon}</div><span className="tag">{e.cat}</span><h2>{e.title}</h2><p>{e.date} · {e.time} · {e.venue}</p><p>This event is part of CampusFest 2026. Registration is available while capacity remains.</p><button className={registered?'registered':'primary'} onClick={onRegister}>{registered?'Already registered ✓':'Register now →'}</button></div></div>}
-function PageTitle({title,sub}){return <div className="pageTitle"><div><span className="eyebrow">CAMPUSFEST</span><h1>{title}</h1><p>{sub}</p></div><span className="dateChip">18–21 OCT 2026</span></div>}
-function Schedule({onDetails}){return <section className="content"><PageTitle title="Master schedule" sub="Everything happening across campus."/><div className="schedule">{['18 OCT','19 OCT','20 OCT','21 OCT'].map((d,i)=><div className="day" key={d}><b>{d}</b><div onClick={()=>onDetails?.(events[i])}><strong>{events[i].time}</strong><span>{events[i].title}</span><small>{events[i].venue}</small></div><div onClick={()=>onDetails?.(events[(i+2)%events.length])}><strong>{events[(i+2)%events.length].time}</strong><span>{events[(i+2)%events.length].title}</span><small>{events[(i+2)%events.length].venue}</small></div></div>)}</div></section>}
-function Passes({registered,onView,onBrowse}){const list=events.filter(e=>registered.includes(e.id));return <section className="content"><PageTitle title="My passes" sub="Your entry passes and registered events."/>{list.length?<div className="passGrid">{list.map(e=><div className="pass" key={e.id}><div className="passTop"><span className="tag">{e.cat}</span><span>ACTIVE</span></div><h2>{e.title}</h2><p>{e.date} · {e.time}</p><div className="qr">{qr}</div><div className="passCode">CF26-{String(e.id).padStart(4,'0')}-A81X</div><button className="outline" onClick={()=>onView(e)}>View full pass</button></div>)}</div>:<div className="listCard"><h2>No active passes</h2><p>Register for an event to generate your demo entry pass.</p><button className="primary" onClick={onBrowse}>Browse events →</button></div>}</section>}
-function PassDetails({e,onClose}){return <div className="modalBackdrop" onClick={onClose}><div className="eventModal" onClick={x=>x.stopPropagation()}><button className="modalClose" onClick={onClose}>×</button><span className="tag">ACTIVE PASS</span><h2>{e.title}</h2><p>{e.date} · {e.time} · {e.venue}</p><div className="qr">{qr}</div><p className="passCode">CF26-{String(e.id).padStart(4,'0')}-A81X</p><button className="primary" onClick={onClose}>Done</button></div></div>}
-const qr='▦ ▦ ▦\n▦   ▦ ▦\n▦ ▦ ▦ ▦\n▦ ▦   ▦\n▦ ▦ ▦ ▦'
-function Results(){const [filter,setFilter]=useState('All');const names=['All',...new Set(results.map(r=>r[0]))];const list=filter==='All'?results:results.filter(r=>r[0]===filter);return <section className="content"><PageTitle title="Official results" sub="Published results from completed competitions."/><div className="resultNotice"><b>Results are official</b><span>Scores are calculated from submitted judge evaluations. Tied participants share the same rank.</span></div><div className="filters"><div>{names.map(x=><button className={filter===x?'selected':''} onClick={()=>setFilter(x)} key={x}>{x}</button>)}</div></div><div className="results">{list.map(r=><div className="resultRow" key={r[0]+r[1]} onClick={()=>alert(`${r[0]} — ${r[1]} scored ${r[2]}/100`)}><b>0{r[3]}</b><div><strong>{r[1]}</strong><small>{r[0]}</small></div><strong>{r[2]} <small>/ 100</small></strong></div>)}</div></section>}
-function CampusMap(){const [venue,setVenue]=useState(null);const venues=['Main Auditorium','Computer Lab 2','Open Amphitheatre','Innovation Block','Seminar Hall','Exhibition Zone'];return <section className="content"><PageTitle title="Campus map" sub="Find event venues and exhibition spaces."/><div className="map"><div className="mapGrid">{venues.map((x,i)=><button className={'pin p'+i} onClick={()=>setVenue(x)} key={x}><span>●</span><b>{x}</b></button>)}</div><div className="mapLegend"><b>Venue directory</b>{venues.map(x=><button className="linkBtn" key={x} onClick={()=>setVenue(x)}>⌖ {x}</button>)}</div></div>{venue&&<div className="modalBackdrop" onClick={()=>setVenue(null)}><div className="eventModal" onClick={e=>e.stopPropagation()}><button className="modalClose" onClick={()=>setVenue(null)}>×</button><span className="tag">VENUE</span><h2>{venue}</h2><p>CampusFest venue information</p><p>Open the schedule or Events page to see activities assigned to this venue.</p><button className="primary" onClick={()=>setVenue(null)}>Done</button></div></div>}</section>}
-function LostFound(){const [sent,setSent]=useState(false);const [item,setItem]=useState('');const [place,setPlace]=useState('');const [details,setDetails]=useState('');const [reports,setReports]=useState(['Black wallet · Library','USB drive · Computer Lab 2','Water bottle · Auditorium']);const submit=()=>{if(!item.trim()||!place.trim()){setSent(false);return}setReports([`${item.trim()} · ${place.trim()}`,...reports]);setItem('');setPlace('');setDetails('');setSent(true)};return <section className="content"><PageTitle title="Lost & Found" sub="Report an item or check recent reports."/><div className="twoCol"><div className="formCard"><h2>Report an item</h2><label>Item name<input value={item} onChange={e=>setItem(e.target.value)} placeholder="e.g. Blue notebook"/></label><label>Last seen at<input value={place} onChange={e=>setPlace(e.target.value)} placeholder="Venue or location"/></label><label>Details<textarea value={details} onChange={e=>setDetails(e.target.value)} placeholder="Add useful details..."/></label><button className="primary" onClick={submit}>{sent?'Report submitted ✓':'Submit report →'}</button>{!sent&&!item.trim()&&<small>Enter an item name and location before submitting.</small>}</div><div className="listCard"><h2>Recent reports</h2>{reports.map((x,i)=><p className="report" key={x+i}>○ {x}<small>{i===0&&sent?'Just now':'Reported today'}</small></p>)}</div></div></section>}
-function Profile(){const [editing,setEditing]=useState(false);const [name,setName]=useState('Samir Narendra');const [email,setEmail]=useState('samir@student.edu');return <section className="content"><PageTitle title="Profile" sub="Manage your CampusFest account."/><div className="profileCard"><div className="bigAvatar">SN</div>{editing?<><label>Name<input value={name} onChange={e=>setName(e.target.value)}/></label><label>Email<input value={email} onChange={e=>setEmail(e.target.value)}/></label></>:<><h2>{name}</h2><p>BCA · Computer Applications</p><div className="profileGrid"><span>Email<strong>{email}</strong></span><span>Year<strong>Second Year</strong></span><span>Events joined<strong>1</strong></span><span>Certificates<strong>3</strong></span></div></>}<button className="outline" onClick={()=>setEditing(!editing)}>{editing?'Save profile':'Edit profile'}</button></div></section>}
-
-function AdminDashboard({go}){return <section className="content"><PageTitle title="Admin dashboard" sub="One administrator controls the complete CampusFest platform."/><div className="dashStats"><Stat n="24" l="Events"/><Stat n="1,240" l="Registrations"/><Stat n="684" l="Check-ins today"/><Stat n="312" l="Certificates"/></div><div className="dashboardGrid"><div className="listCard"><span className="eyebrow">PLATFORM CONTROL</span><h2>Manage everything</h2><button className="report" onClick={()=>go('events')}>◆ Events & registrations<small>Create, edit, publish and review events →</small></button><button className="report" onClick={()=>go('results')}>◆ Competitions & results<small>Review scores and publish official results →</small></button><button className="report" onClick={()=>go('lost')}>◆ Lost & Found<small>Review campus reports and submissions →</small></button><button className="report" onClick={()=>go('map')}>◆ Campus venues<small>Review event locations and venue information →</small></button></div><div className="actionCard"><span className="eyebrow">ADMIN QUICK ACTIONS</span><h2>Full platform control</h2><p>Use the admin navigation to manage the student-facing event experience. There are no separate organizer or judge accounts in this demo.</p><button className="primary" onClick={()=>go('events')}>Manage events →</button><button className="outline" onClick={()=>go('results')}>Manage results</button></div></div></section>}
-function AdminProfile(){return <section className="content"><PageTitle title="Admin profile" sub="Single administrator account for CampusFest management."/><div className="profileCard"><div className="bigAvatar">AD</div><h2>CampusFest Administrator</h2><p>System administrator · Full control</p><div className="profileGrid"><span>Access<strong>Full platform control</strong></span><span>Account<strong>Administrator</strong></span><span>Mode<strong>Single admin</strong></span><span>Status<strong>Active</strong></span></div><button className="outline" onClick={()=>alert('Admin account settings are part of the backend authentication layer.')}>Account settings</button></div></section>}
-
-export default App
