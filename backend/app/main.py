@@ -58,6 +58,13 @@ def init_db():
         """)
         c.execute("ALTER TABLE lost_found ADD COLUMN IF NOT EXISTS found_item_image TEXT DEFAULT ''")
         c.execute("ALTER TABLE lost_found_claims ADD COLUMN IF NOT EXISTS lost_item_image TEXT DEFAULT ''")
+        c.execute("""
+        CREATE TABLE IF NOT EXISTS admin_active_lock(
+          admin_key TEXT PRIMARY KEY,
+          client_id TEXT NOT NULL,
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+        """)
         c.execute("UPDATE registrations SET course=college WHERE (course IS NULL OR course='') AND college IS NOT NULL AND college<>''")
 
 
@@ -132,15 +139,51 @@ class LostFoundClaimIn(BaseModel):
     lostWhenWhere: str = ''
     lostItemImage: str = ''
 
-def admin(authorization: str | None = Header(None)):
+ADMIN_LOCK_TTL_SECONDS = 45
+ADMIN_TAB_HEADER = "X-Admin-Client-ID"
+
+
+def _valid_admin_client_id(value: str | None) -> str | None:
+    value = (value or "").strip()
+    return value if re.fullmatch(r"[A-Za-z0-9_-]{20,128}", value) else None
+
+
+def _acquire_admin_lock(connection, client_id: str):
+    return connection.execute(
+        """INSERT INTO admin_active_lock(admin_key,client_id,updated_at)
+           VALUES(%s,%s,CURRENT_TIMESTAMP)
+           ON CONFLICT(admin_key) DO UPDATE
+           SET client_id=EXCLUDED.client_id, updated_at=CURRENT_TIMESTAMP
+           WHERE admin_active_lock.client_id=EXCLUDED.client_id
+              OR admin_active_lock.updated_at < CURRENT_TIMESTAMP - INTERVAL '45 seconds'
+           RETURNING client_id""",
+        (ADMIN_USER.casefold(), client_id),
+    ).fetchone()
+
+
+def _require_admin_lock(connection, client_id: str):
+    row = connection.execute(
+        "SELECT client_id FROM admin_active_lock WHERE admin_key=%s AND updated_at >= CURRENT_TIMESTAMP - INTERVAL '45 seconds'",
+        (ADMIN_USER.casefold(),),
+    ).fetchone()
+    if not row or row["client_id"] != client_id:
+        raise HTTPException(409, "Admin panel is active in another browser/tab. Use the tab that signed in.")
+
+
+def admin(authorization: str | None = Header(None), x_admin_client_id: str | None = Header(None, alias=ADMIN_TAB_HEADER)):
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(401, "Authentication required")
+    client_id = _valid_admin_client_id(x_admin_client_id)
+    if not client_id:
+        raise HTTPException(409, "Admin tab identity missing. Please sign in again.")
     try:
         payload = jwt.decode(authorization[7:], SECRET, algorithms=["HS256"])
     except Exception:
         raise HTTPException(401, "Invalid or expired token")
-    if payload.get("role") != "ADMIN":
-        raise HTTPException(403, "Admin access required")
+    if payload.get("role") != "ADMIN" or payload.get("clientId") != client_id:
+        raise HTTPException(401, "Invalid admin session")
+    with db() as c:
+        _require_admin_lock(c, client_id)
     return payload
 
 def event_json(r):
@@ -177,17 +220,61 @@ def health():
     return {"status": "ok", "service": "CampusFest backend"}
 
 @app.post("/api/auth/login")
-def login(x: Login):
+def login(x: Login, x_admin_client_id: str | None = Header(None, alias=ADMIN_TAB_HEADER)):
     if len(x.username) > 50 or len(x.password) > 100:
         raise HTTPException(400, "Input is too long")
     if x.username.casefold() != ADMIN_USER.casefold() or x.password != ADMIN_PASS:
         raise HTTPException(401, "Invalid credentials")
+    client_id = _valid_admin_client_id(x_admin_client_id)
+    if not client_id:
+        raise HTTPException(400, "Admin tab identity missing. Refresh the login page and try again.")
+    with db() as c:
+        lock = _acquire_admin_lock(c, client_id)
+        if not lock:
+            raise HTTPException(409, "Admin panel is already active in another browser/tab. Close it or use the active admin tab.")
+        c.commit()
     now = datetime.now(timezone.utc)
     token = jwt.encode({
-        "sub": ADMIN_USER, "role": "ADMIN", "iat": int(now.timestamp()),
+        "sub": ADMIN_USER, "role": "ADMIN", "clientId": client_id,
+        "iat": int(now.timestamp()),
         "exp": int((now + timedelta(hours=8)).timestamp())
     }, SECRET, algorithm="HS256")
     return {"token": token, "username": ADMIN_USER, "name": "CampusFest Administrator", "role": "ADMIN"}
+
+
+@app.post("/api/auth/admin-lock/heartbeat")
+def admin_lock_heartbeat(authorization: str | None = Header(None), x_admin_client_id: str | None = Header(None, alias=ADMIN_TAB_HEADER)):
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(401, "Authentication required")
+    client_id = _valid_admin_client_id(x_admin_client_id)
+    if not client_id:
+        raise HTTPException(409, "Admin tab identity missing")
+    try:
+        payload = jwt.decode(authorization[7:], SECRET, algorithms=["HS256"])
+    except Exception:
+        raise HTTPException(401, "Invalid or expired token")
+    if payload.get("role") != "ADMIN" or payload.get("clientId") != client_id:
+        raise HTTPException(401, "Invalid admin session")
+    with db() as c:
+        lock = _acquire_admin_lock(c, client_id)
+        if not lock:
+            raise HTTPException(409, "Admin panel is active in another browser/tab. Use the tab that signed in.")
+        c.commit()
+    return {"ok": True}
+
+
+@app.post("/api/auth/admin-lock/release")
+def admin_lock_release(_: dict = Depends(admin), x_admin_client_id: str | None = Header(None, alias=ADMIN_TAB_HEADER)):
+    client_id = _valid_admin_client_id(x_admin_client_id)
+    if not client_id:
+        raise HTTPException(409, "Admin tab identity missing")
+    with db() as c:
+        c.execute(
+            "DELETE FROM admin_active_lock WHERE admin_key=%s AND client_id=%s",
+            (ADMIN_USER.casefold(), client_id),
+        )
+        c.commit()
+    return {"ok": True}
 
 @app.get("/api/events")
 def public_events():

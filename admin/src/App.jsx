@@ -3,20 +3,30 @@ import jsQR from 'jsqr'
 import './App.css'
 
 const API = import.meta.env.VITE_API_URL || 'http://localhost:8080/api'
-const ADMIN_LOCK_KEY = 'campusfest_admin_lock'
-const ADMIN_LOCK_TIMEOUT = 15000
-const TAB_ID = sessionStorage.getItem('campusfest_admin_tab_id') || crypto.randomUUID()
+const TAB_ID = sessionStorage.getItem('campusfest_admin_tab_id') || (crypto.randomUUID ? crypto.randomUUID() : Date.now() + '-' + Math.random().toString(36).slice(2))
 sessionStorage.setItem('campusfest_admin_tab_id', TAB_ID)
 
-function readAdminLock(){try{return JSON.parse(localStorage.getItem(ADMIN_LOCK_KEY)||'null')}catch{return null}}
-function acquireAdminLock(){
-  const now=Date.now(), lock=readAdminLock()
-  if(lock && lock.tabId!==TAB_ID && now-lock.heartbeat<ADMIN_LOCK_TIMEOUT)return false
-  localStorage.setItem(ADMIN_LOCK_KEY,JSON.stringify({tabId:TAB_ID,heartbeat:now}))
+function clearAdminSession(){
+  sessionStorage.removeItem('campusfest_admin_user')
+  sessionStorage.removeItem('campusfest_admin_token')
+}
+
+async function heartbeatAdminLock(){
+  const token=sessionStorage.getItem('campusfest_admin_token')
+  if(!token)return true
+  const res=await fetch(API+'/auth/admin-lock/heartbeat',{method:'POST',headers:{Authorization:'Bearer '+token,'X-Admin-Client-ID':TAB_ID},cache:'no-store'})
+  if(!res.ok){
+    clearAdminSession()
+    return false
+  }
   return true
 }
-function releaseAdminLock(){const lock=readAdminLock();if(lock?.tabId===TAB_ID)localStorage.removeItem(ADMIN_LOCK_KEY)}
-function heartbeatAdminLock(){const lock=readAdminLock();if(lock?.tabId===TAB_ID)localStorage.setItem(ADMIN_LOCK_KEY,JSON.stringify({tabId:TAB_ID,heartbeat:Date.now()}))}
+
+function releaseAdminLock(){
+  const token=sessionStorage.getItem('campusfest_admin_token')
+  if(!token)return
+  try{fetch(API+'/auth/admin-lock/release',{method:'POST',headers:{Authorization:'Bearer '+token,'X-Admin-Client-ID':TAB_ID},cache:'no-store',keepalive:true})}catch{}
+}
 
 const limitWords = (value, max) => {
   if (typeof value !== 'string' || max <= 0) return ''
@@ -31,8 +41,13 @@ const limitWords = (value, max) => {
 }
 async function api(path, options = {}) {
   const token = sessionStorage.getItem('campusfest_admin_token')
-  const res = await fetch(API + path, { ...options, headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: 'Bearer ' + token } : {}), ...(options.headers || {}) } })
-  if (!res.ok) { let m = 'Request failed'; try { const j = await res.json(); m = j.detail || j.message || m } catch {}; throw Error(m) }
+  const res = await fetch(API + path, { ...options, headers: { 'Content-Type': 'application/json', 'X-Admin-Client-ID': TAB_ID, ...(token ? { Authorization: 'Bearer ' + token } : {}), ...(options.headers || {}) } })
+  if (!res.ok) {
+    let m = 'Request failed'
+    try { const j = await res.json(); m = j.detail || j.message || m } catch {}
+    if(res.status===401 || res.status===409){ clearAdminSession(); window.dispatchEvent(new CustomEvent('campusfest-admin-lock-lost',{detail:m})) }
+    throw Error(m)
+  }
   return res.status === 204 ? null : res.json()
 }
 const nav = [['events','Events'],['registrations','Registrations'],['lost','Lost & Found']]
@@ -42,23 +57,18 @@ export default function App() {
   const [page,setPage]=useState('events'), [events,setEvents]=useState([]), [lost,setLost]=useState([]), [notice,setNotice]=useState(''), [editing,setEditing]=useState(null), [selectedEvent,setSelectedEvent]=useState(null)
   useEffect(()=>{
     if(!admin)return
-    if(!acquireAdminLock()){
-      sessionStorage.removeItem('campusfest_admin_user');sessionStorage.removeItem('campusfest_admin_token');setAdmin(null);setNotice('Admin panel is already open in another tab.')
-      return
+    let alive=true
+    const beat=async()=>{
+      const ok=await heartbeatAdminLock()
+      if(!ok && alive){setAdmin(null);setNotice('Admin panel is active in another browser/tab. Use the tab that signed in.')}
     }
-    heartbeatAdminLock()
-    const timer=setInterval(heartbeatAdminLock,5000)
-    const onStorage=e=>{
-      if(e.key===ADMIN_LOCK_KEY && e.newValue){
-        try{const lock=JSON.parse(e.newValue);if(lock.tabId!==TAB_ID && Date.now()-lock.heartbeat<ADMIN_LOCK_TIMEOUT){
-          sessionStorage.removeItem('campusfest_admin_user');sessionStorage.removeItem('campusfest_admin_token');setAdmin(null);setNotice('Admin panel is already open in another tab.')
-        }}catch{}
-      }
-    }
-    window.addEventListener('storage',onStorage)
+    beat()
+    const timer=setInterval(beat,5000)
+    const onLockLost=e=>{if(alive){setAdmin(null);setNotice(e.detail||'Admin panel is active in another browser/tab. Use the tab that signed in.')}}
     const release=()=>releaseAdminLock()
-    window.addEventListener('beforeunload',release)
-    return()=>{clearInterval(timer);window.removeEventListener('storage',onStorage);window.removeEventListener('beforeunload',release);releaseAdminLock()}
+    window.addEventListener('campusfest-admin-lock-lost',onLockLost)
+    window.addEventListener('pagehide',release)
+    return()=>{alive=false;clearInterval(timer);window.removeEventListener('campusfest-admin-lock-lost',onLockLost);window.removeEventListener('pagehide',release)}
   },[admin])
   useEffect(()=>{if(!notice)return;const timer=setTimeout(()=>setNotice(''),5000);return()=>clearTimeout(timer)},[notice])
   const load=async()=>{try{const [e,l]=await Promise.all([api('/events/all'),api('/admin/lost-found')]);setEvents(e);setLost(l)}catch(e){if(e.message==='Authentication required'||e.message==='Invalid or expired token'||e.message==='Admin access required'){sessionStorage.removeItem('campusfest_admin_user');sessionStorage.removeItem('campusfest_admin_token');setAdmin(null);return}setNotice(e.message)}}
@@ -72,7 +82,7 @@ export default function App() {
   </main></div>
 }
 
-function Login({onLogin}){const[u,setU]=useState(''),[p,setP]=useState(''),[err,setErr]=useState(''),[busy,setBusy]=useState(false);const submit=async e=>{e.preventDefault();setErr('');setBusy(true);try{const r=await fetch(API+'/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p})});const j=await r.json();if(!r.ok)throw Error(j.detail||'Invalid credentials');if(j.role!=='ADMIN')throw Error('Administrator access required');if(!acquireAdminLock())throw Error('Admin panel is already open in another tab.');onLogin(j)}catch(x){setErr(x.message)}finally{setBusy(false)}};return <div className="capAuth"><div className="capLogin"><div className="capHead"><div className="capMark">CF</div><div><b>CampusFest</b></div></div><div className="capRule"/><span className="badge">ADMIN LOGIN</span><h1>Sign in</h1><p className="capHint">Manage events, registrations and entry verification.</p><form onSubmit={submit}><label>Admin ID<input autoComplete="username" required maxLength="50" value={u} onChange={e=>setU(e.target.value)}/></label><label>Password<input type="password" autoComplete="current-password" required maxLength="100" value={p} onChange={e=>setP(e.target.value)}/></label>{err&&<div className="error">{err}</div>}<button className="primary" disabled={busy}>{busy?'Signing in…':'Login'}</button></form></div></div>}
+function Login({onLogin}){const[u,setU]=useState(''),[p,setP]=useState(''),[err,setErr]=useState(''),[busy,setBusy]=useState(false);const submit=async e=>{e.preventDefault();setErr('');setBusy(true);try{const r=await fetch(API+'/auth/login',{method:'POST',headers:{'Content-Type':'application/json','X-Admin-Client-ID':TAB_ID},body:JSON.stringify({username:u,password:p})});const j=await r.json();if(!r.ok)throw Error(j.detail||'Invalid credentials');if(j.role!=='ADMIN')throw Error('Administrator access required');onLogin(j)}catch(x){setErr(x.message)}finally{setBusy(false)}};return <div className="capAuth"><div className="capLogin"><div className="capHead"><div className="capMark">CF</div><div><b>CampusFest</b></div></div><div className="capRule"/><span className="badge">ADMIN LOGIN</span><h1>Sign in</h1><p className="capHint">Manage events, registrations and entry verification.</p><form onSubmit={submit}><label>Admin ID<input autoComplete="username" required maxLength="50" value={u} onChange={e=>setU(e.target.value)}/></label><label>Password<input type="password" autoComplete="current-password" required maxLength="100" value={p} onChange={e=>setP(e.target.value)}/></label>{err&&<div className="error">{err}</div>}<button className="primary" disabled={busy}>{busy?'Signing in…':'Login'}</button></form></div></div>}
 
 
 function Events({events,edit,newEvent,load,notice,openRegs}){const remove=async id=>{if(!confirm('Delete this event?'))return;try{await api('/events/'+id,{method:'DELETE'});notice('Event deleted.');load()}catch(e){notice(e.message)}};const toggle=async e=>{try{await api('/events/'+e.id+'/'+(e.status==='PUBLISHED'?'close':'reopen'),{method:'POST'});notice(e.status==='PUBLISHED'?'Registration closed.':'Registration reopened.');load()}catch(x){notice(x.message)}};return <section className="content"><div className="toolbar"><button className="primary" onClick={newEvent}>+ Post Event</button></div><div className="eventList">{events.map(e=><article className="adminEvent" key={e.id}>{e.posterData?<img src={e.posterData} alt="Poster"/>:<div className="noPoster">No poster</div>}<div><div className="badges"><span className={'badge '+e.status.toLowerCase()}>{e.status}</span></div><h2>{e.title}</h2><p>{e.description}</p></div><div className="actions"><button className="outline" onClick={()=>edit(e)}>Edit</button><button className="outline" onClick={()=>openRegs(e.id)}>Registrations</button>{e.status!=='DRAFT'&&<button className="outline" onClick={()=>toggle(e)}>{e.status==='PUBLISHED'?'Close Registration':'Reopen Registration'}</button>}<button className="danger" onClick={()=>remove(e.id)}>Delete</button></div></article>)}</div>{!events.length&&<div className="empty">No events.</div>}</section>}
