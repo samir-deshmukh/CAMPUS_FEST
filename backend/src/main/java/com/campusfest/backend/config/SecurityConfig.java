@@ -25,12 +25,11 @@ public class SecurityConfig {
 
     @Bean
     SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-        return http
-                .csrf(csrf -> csrf.disable())
+        return http.csrf(csrf -> csrf.disable())
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/auth/**", "/api/health", "/actuator/health").permitAll()
+                        .requestMatchers("/api/auth/login", "/api/events", "/api/events/*", "/api/registrations/**", "/api/health", "/actuator/health").permitAll()
                         .anyRequest().authenticated())
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class)
                 .build();
@@ -39,10 +38,7 @@ public class SecurityConfig {
     @Bean
     CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration c = new CorsConfiguration();
-        c.setAllowedOriginPatterns(List.of(
-                "http://localhost:*",
-                "https://sai-student.onrender.com",
-                "https://sai-sa9l.onrender.com"));
+        c.setAllowedOriginPatterns(List.of("http://localhost:*","https://sai-student.onrender.com","https://sai-sa9l.onrender.com"));
         c.setAllowedMethods(List.of("GET","POST","PUT","DELETE","OPTIONS"));
         c.setAllowedHeaders(List.of("Authorization","Content-Type"));
         c.setAllowCredentials(false);
@@ -52,7 +48,5 @@ public class SecurityConfig {
     }
 
     @Bean PasswordEncoder passwordEncoder() { return new BCryptPasswordEncoder(12); }
-    @Bean AuthenticationManager authenticationManager(AuthenticationConfiguration config) throws Exception {
-        return config.getAuthenticationManager();
-    }
+    @Bean AuthenticationManager authenticationManager(AuthenticationConfiguration config) throws Exception { return config.getAuthenticationManager(); }
 }
