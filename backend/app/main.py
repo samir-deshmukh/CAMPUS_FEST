@@ -472,8 +472,16 @@ def scanner_user(authorization: str | None = Header(None)):
         raise HTTPException(403, "Scanner access required")
     return payload
 
+@app.get("/api/scanner/events")
+def scanner_events(_: dict = Depends(scanner_user)):
+    with db() as c:
+        rows = c.execute(
+            "SELECT id,title,status FROM events ORDER BY id DESC"
+        ).fetchall()
+        return [{"id": r["id"], "title": r["title"], "status": r["status"]} for r in rows]
+
 @app.post("/api/scanner/verify")
-def scanner_verify(passToken: str, _: dict = Depends(scanner_user)):
+def scanner_verify(passToken: str, eventId: int, _: dict = Depends(scanner_user)):
     with db() as c:
         c.execute("BEGIN")
         r = c.execute("""SELECT r.*, e.title event_title FROM registrations r
@@ -481,6 +489,9 @@ def scanner_verify(passToken: str, _: dict = Depends(scanner_user)):
         if not r:
             c.rollback()
             return {"allowed": False, "message": "Invalid QR. Entry denied."}
+        if r["event_id"] != eventId:
+            c.rollback()
+            return {"allowed": False, "message": "This pass belongs to another event. Entry denied.", "name": r["name"], "eventTitle": r["event_title"]}
         if r["status"] != "ACTIVE":
             c.rollback()
             return {"allowed": False, "message": "Registration is cancelled. Entry denied.", "name": r["name"], "eventTitle": r["event_title"]}
