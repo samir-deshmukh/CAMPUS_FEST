@@ -77,8 +77,8 @@ function LostAdmin({rows,load,notice}) {
             {pending.length>0&&<span className="badge claimAlert">{pending.length} CLAIM RECEIVED</span>}
           </div>
           <h2>{r.item}</h2>
-          <p>{r.description}</p>
-          <div className="adminLostMeta"><span>{r.location}</span><span>{(r.contact||'').split(' | ')[0]}</span><span>{(r.contact||'').split(' | ')[1]||'—'}</span></div>
+          <p className="adminLostDescription">{r.description}</p>
+          <div className="adminLostMeta"><span><b>Name:</b> {(r.contact||'').split(' | ')[0]||'—'}</span><span><b>No:</b> {(r.contact||'').split(' | ')[1]||'—'}</span><span><b>Item:</b> {r.item}</span></div>
         </div>
         <div className="actions adminLostActions">
           {r.status==='PENDING'&&<button className="primary" onClick={()=>verify(r.id)}>Verify &amp; Publish</button>}
