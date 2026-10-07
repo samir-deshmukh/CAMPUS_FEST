@@ -142,8 +142,23 @@ function CancelRegistration({ setNotice }) {
 }
 
 function LostFound({ setNotice }) {
-  const [items, setItems] = useState([]), [form, setForm] = useState({ type: 'FOUND', fullName: '', phone: '', item: '', description: '', location: '', foundItemImage: '' }), [claim, setClaim] = useState(null), [busy, setBusy] = useState(false), [reportError, setReportError] = useState('')
+  const [items, setItems] = useState([]), [form, setForm] = useState({ type: 'FOUND', fullName: '', phone: '', item: '', description: '', location: '', foundItemImage: '' }), [claim, setClaim] = useState(null), [busy, setBusy] = useState(false), [reportError, setReportError] = useState(''), [invalidFields, setInvalidFields] = useState({})
   const load = async () => { try { setItems(await api('/lost-found')) } catch {} }
+  const checkText = async (key, value) => {
+    const trimmed = value.trim()
+    if (!trimmed) { setInvalidFields(f => ({ ...f, [key]: false })); return }
+    try {
+      const result = await api('/validate-text', { method: 'POST', body: JSON.stringify({ value: trimmed, field: key }) })
+      setInvalidFields(f => ({ ...f, [key]: !result.valid }))
+    } catch {}
+  }
+  const updateText = (key, value) => {
+    setForm(f => ({ ...f, [key]: value }))
+    if (key === 'fullName' || key === 'item' || key === 'description' || key === 'location') {
+      clearTimeout(window.__campusFestValidationTimer)
+      window.__campusFestValidationTimer = setTimeout(() => checkText(key, value), 180)
+    }
+  }
   useEffect(() => {
     load()
     const timer = setInterval(load, 5000)
@@ -152,6 +167,8 @@ function LostFound({ setNotice }) {
   const submit = async e => {
     e.preventDefault()
     setReportError('')
+    const phoneInvalid = form.phone.length > 0 && !/^[6-9][0-9]{9}$/.test(form.phone)
+    if (phoneInvalid || Object.values(invalidFields).some(Boolean)) return
     setBusy(true)
     try {
       await api('/lost-found', { method: 'POST', body: JSON.stringify(form) })
@@ -170,11 +187,11 @@ function LostFound({ setNotice }) {
   return <section className="page"><h1>Lost &amp; Found</h1>
     <div className="lostGrid">
       <div className="panel"><h2>Report a Found Item</h2><p className="muted">Report items you have found. Please submit the found item at the college Lost &amp; Found counter.</p><form onSubmit={submit}>
-        <label>Full name<input required value={form.fullName} onChange={e => setForm(f => ({ ...f, fullName: e.target.value }))} /></label>
-        <label>Mobile number<input required type="tel" inputMode="numeric" pattern="[6-9][0-9]{9}" maxLength="10" title="Enter a valid 10-digit Indian mobile number" value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value.replace(/\D/g, '').slice(0,10) }))} /></label>
-        <label>Item name<input required maxLength="100" value={form.item} onChange={e => setForm(f => ({ ...f, item: e.target.value }))} /></label>
-        <label>Description<textarea required maxLength="1000" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} /></label>
-        <label>Found location<input required maxLength="150" value={form.location} onChange={e => setForm(f => ({ ...f, location: e.target.value }))} /></label>
+        <label>Full name<input required className={invalidFields.fullName ? 'inputInvalid' : ''} value={form.fullName} onChange={e => updateText('fullName', e.target.value)} /></label>
+        <label>Mobile number<input required type="tel" inputMode="numeric" pattern="[6-9][0-9]{9}" maxLength="10" title="Enter a valid 10-digit Indian mobile number" className={form.phone.length > 0 && !/^[6-9][0-9]{9}$/.test(form.phone) ? 'inputInvalid' : ''} value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value.replace(/\D/g, '').slice(0,10) }))} /></label>
+        <label>Item name<input required maxLength="100" className={invalidFields.item ? 'inputInvalid' : ''} value={form.item} onChange={e => updateText('item', e.target.value)} /></label>
+        <label>Description<textarea required maxLength="1000" className={invalidFields.description ? 'inputInvalid' : ''} value={form.description} onChange={e => updateText('description', e.target.value)} /></label>
+        <label>Found location<input required maxLength="150" className={invalidFields.location ? 'inputInvalid' : ''} value={form.location} onChange={e => updateText('location', e.target.value)} /></label>
         <label>Photo of found item<input type="file" accept="image/png,image/jpeg,image/webp" onChange={e => { const f=e.target.files?.[0]; if(!f)return; if(f.size>2500000){setReportError('Photo must be 2.5 MB or smaller'); e.target.value=''; return} const r=new FileReader(); r.onload=()=>setForm(x => ({ ...x, foundItemImage:r.result })); r.readAsDataURL(f) }} /></label>
         {reportError && <div className="error">{reportError}</div>}
         <button className="primary" disabled={busy}>{busy ? 'Submitting...' : 'Report Found Item'}</button>

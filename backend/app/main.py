@@ -380,6 +380,17 @@ def dashboard(_: dict = Depends(admin)):
             recent.append({**event_json(r), "registrations": r["registrations"]})
         return {**counts, "recentEvents": recent}
 
+class TextCheckIn(BaseModel):
+    value: str
+    field: str = "Text"
+
+@app.post("/api/validate-text")
+def validate_text_live(x: TextCheckIn):
+    value = x.value.strip()
+    if contains_bad_words(value):
+        return {"valid": False, "message": "Please use respectful language."}
+    return {"valid": True, "message": ""}
+
 @app.get("/api/lost-found")
 def public_lost_found():
     with db() as c:
