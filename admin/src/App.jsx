@@ -53,6 +53,7 @@ function LostAdmin({rows,load,notice}) {
   const [openClaim,setOpenClaim]=useState(null)
   const [selectedReport,setSelectedReport]=useState(null)
   const [lightbox,setLightbox]=useState(null)
+  const [activeSection,setActiveSection]=useState('pending')
   if(selectedReport){
     const r=rows.find(x=>x.id===selectedReport)
     if(!r){setSelectedReport(null);return null}
@@ -106,15 +107,22 @@ function LostAdmin({rows,load,notice}) {
   </section>
 
   const pendingReports = rows.filter(r=>r.status==='PENDING')
-  const claimReceived = rows.filter(r=>r.status!=='RESOLVED' && (r.claims||[]).some(c=>c.status==='PENDING'))
+  const claimReceived = rows.filter(r=>r.status==='VERIFIED' && (r.claims||[]).some(c=>c.status==='PENDING'))
   const resolved = rows.filter(r=>r.status==='RESOLVED')
   const verified = rows.filter(r=>r.status==='VERIFIED' && !(r.claims||[]).some(c=>c.status==='PENDING'))
+  const sections = [
+    ['pending','Pending Verification',pendingReports,'No reports waiting for verification.'],
+    ['verified','Verified',verified,'No verified items.'],
+    ['claims','Claim Received',claimReceived,'No claims received.'],
+    ['resolved','Resolved',resolved,'No resolved items.']
+  ]
+  const current = sections.find(s=>s[0]===activeSection) || sections[0]
 
   return <section className="content">
-    {renderSection('Pending Verification', pendingReports, 'No reports waiting for verification.')}
-    {renderSection('Verified', verified, 'No verified items.')}
-    {renderSection('Claim Received', claimReceived, 'No claims received.')}
-    {renderSection('Resolved', resolved, 'No resolved items.')}
+    <div className="lostTabs" role="tablist">
+      {sections.map(([id,title,data])=><button key={id} className={activeSection===id?'active':''} onClick={()=>{setActiveSection(id);setOpenClaim(null)}}>{title}<span>{data.length}</span></button>)}
+    </div>
+    {renderSection(current[1],current[2],current[3])}
     {lightbox&&<div className="imageLightbox" onClick={()=>setLightbox(null)}><button className="close" onClick={()=>setLightbox(null)}>×</button><img src={lightbox} alt="Enlarged item"/></div>}
   </section>
 }
