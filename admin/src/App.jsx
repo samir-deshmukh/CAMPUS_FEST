@@ -62,7 +62,7 @@ async function api(path, options = {}) {
   }
   return res.status === 204 ? null : res.json()
 }
-const nav = [['events','Events'],['registrations','Registrations'],['lost','Lost & Found']]
+const nav = [['events','Events'],['registrations','Registrations'],['gallery','Event Gallery'],['lost','Lost & Found']]
 
 export default function App() {
   const [admin,setAdmin]=useState(()=>JSON.parse(sessionStorage.getItem('campusfest_admin_user')||'null'))
@@ -89,10 +89,13 @@ export default function App() {
   return <div className="app"><aside><div className="brand"><b>CampusFest</b></div><nav>{nav.map(([id,label])=><button className={page===id?'active':''} onClick={()=>setPage(id)} key={id}>{label}</button>)}</nav></aside><main><header><div><h1>{nav.find(x=>x[0]===page)?.[1]}</h1></div></header>{notice&&<div className="toast">{notice}<button onClick={()=>setNotice('')}>×</button></div>}
   {page==='events'&&<Events events={events} edit={setEditing} newEvent={()=>setEditing({})} load={load} notice={setNotice} openRegs={id=>{setSelectedEvent(id);setPage('registrations')}}/>}
   {page==='registrations'&&<Registrations events={events} selectedEvent={selectedEvent} setSelectedEvent={setSelectedEvent}/>}
+  {page==='gallery'&&<Gallery events={events} notice={setNotice}/>}
   {page==='lost'&&<LostAdmin rows={lost} load={load} notice={setNotice}/>}
   {editing&&<EventForm event={editing.id?editing:null} close={()=>setEditing(null)} load={load} notice={setNotice}/>}
   </main></div>
 }
+
+function Gallery({events,notice}){const[rows,setRows]=useState([]),[eventId,setEventId]=useState(''),[busy,setBusy]=useState(false);const load=()=>api('/admin/event-gallery').then(setRows).catch(e=>notice(e.message));useEffect(load,[]);const add=e=>{const f=e.target.files?.[0];if(!f)return;if(f.size>2500000){notice('Gallery photo must be 2.5 MB or smaller.');e.target.value='';return}if(!eventId){notice('Select an event first.');e.target.value='';return}const r=new FileReader();r.onload=async()=>{setBusy(true);try{await api('/admin/event-gallery',{method:'POST',body:JSON.stringify({eventId:Number(eventId),photoData:r.result})});notice('Photo added.');e.target.value='';load()}catch(x){notice(x.message)}finally{setBusy(false)}};r.readAsDataURL(f)};const remove=async id=>{try{await api('/admin/event-gallery/'+id,{method:'DELETE'});notice('Photo removed.');load()}catch(e){notice(e.message)}};return <section className="content"><div className="toolbar"><PanelSelect value={eventId} onChange={setEventId} placeholder="Select event" options={events.map(e=>({value:e.id,label:e.title}))}/><label className="galleryUpload">+ Add Photo<input type="file" accept="image/png,image/jpeg,image/webp" disabled={busy||!eventId} onChange={add}/></label></div><div className="galleryGrid">{rows.map(r=><article className="galleryAdminCard" key={r.id}><img src={r.photoData} alt="Event gallery"/><div><strong>{r.title}</strong><button className="danger" onClick={()=>remove(r.id)}>Delete</button></div></article>)}</div>{!rows.length&&<div className="empty">No event photos yet.</div>}</section>}
 
 function Login({onLogin}){const[u,setU]=useState(''),[p,setP]=useState(''),[err,setErr]=useState(''),[busy,setBusy]=useState(false);const submit=async e=>{e.preventDefault();setErr('');setBusy(true);try{const r=await fetch(API+'/auth/login',{method:'POST',headers:{'Content-Type':'application/json','X-Admin-Client-ID':TAB_ID},body:JSON.stringify({username:u,password:p})});const j=await r.json();if(!r.ok)throw Error(j.detail||'Invalid credentials');if(j.role!=='ADMIN')throw Error('Administrator access required');onLogin(j)}catch(x){setErr(x.message)}finally{setBusy(false)}};return <div className="capAuth"><div className="capLogin"><div className="capHead"><div className="capMark">CF</div><div><b>CampusFest</b></div></div><div className="capRule"/><span className="badge">ADMIN LOGIN</span><h1>Sign in</h1><p className="capHint">Manage events, registrations and entry verification.</p><form onSubmit={submit}><label>Admin ID<input autoComplete="username" required maxLength="50" value={u} onChange={e=>setU(e.target.value)}/></label><label>Password<input type="password" autoComplete="current-password" required maxLength="100" value={p} onChange={e=>setP(e.target.value)}/></label>{err&&<div className="error">{err}</div>}<button className="primary" disabled={busy}>{busy?'Signing in…':'Login'}</button></form></div></div>}
 
