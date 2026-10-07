@@ -1,4 +1,4 @@
-import os, secrets
+import os, secrets, re
 import psycopg
 from psycopg.rows import dict_row
 from datetime import datetime, timedelta, timezone
@@ -77,6 +77,17 @@ class RegistrationIn(BaseModel):
     college: str
     email: str
     phone: str
+
+BAD_WORDS = {
+    "fuck", "fucking", "shit", "bitch", "bastard", "asshole", "dick", "piss", "cunt", "motherfucker"
+}
+
+def contains_bad_words(value: str) -> bool:
+    words = re.findall(r"[a-zA-Z]+", value.lower())
+    return any(w in BAD_WORDS for w in words)
+
+def valid_mobile(value: str) -> bool:
+    return bool(re.fullmatch(r"[6-9]\d{9}", value.strip()))
 
 class LostFoundIn(BaseModel):
     type: str
@@ -359,6 +370,12 @@ def create_lost_found(x: LostFoundIn):
         raise HTTPException(400, "Only found items can be reported. Lost items are handled manually.")
     if not x.fullName.strip() or not x.phone.strip():
         raise HTTPException(400, "Full name and mobile number are required")
+    if not valid_mobile(x.phone):
+        raise HTTPException(400, "Enter a valid 10-digit Indian mobile number")
+    if not x.item.strip() or not x.description.strip():
+        raise HTTPException(400, "Item name and description are required")
+    if contains_bad_words(x.item) or contains_bad_words(x.description):
+        raise HTTPException(400, "Please use respectful language in the item name and description")
     now = datetime.now(timezone.utc).isoformat()
     with db() as c:
         cur = c.execute(

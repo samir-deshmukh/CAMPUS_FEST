@@ -163,11 +163,11 @@ function LostFound({ setNotice }) {
   }
   return <section className="page"><h1>Lost &amp; Found</h1>
     <div className="lostGrid">
-      <div className="panel"><h2>Report a Found Item</h2><p className="muted">Report items you have found. Lost items are handled manually at the counter.</p><form onSubmit={submit}>
+      <div className="panel"><h2>Report a Found Item</h2><p className="muted">Report items you have found. Please submit the found item at the college Lost &amp; Found counter.</p><form onSubmit={submit}>
         <label>Full name<input required value={form.fullName} onChange={e => setForm(f => ({ ...f, fullName: e.target.value }))} /></label>
-        <label>Mobile number<input required type="tel" inputMode="numeric" value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} /></label>
-        <label>Item name<input required value={form.item} onChange={e => setForm(f => ({ ...f, item: e.target.value }))} /></label>
-        <label>Description<textarea required value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} /></label>
+        <label>Mobile number<input required type="tel" inputMode="numeric" pattern="[6-9][0-9]{9}" maxLength="10" title="Enter a valid 10-digit Indian mobile number" value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value.replace(/\D/g, '').slice(0,10) }))} /></label>
+        <label>Item name<input required maxLength="100" value={form.item} onChange={e => setForm(f => ({ ...f, item: e.target.value }))} /></label>
+        <label>Description<textarea required maxLength="1000" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} /></label>
         <label>Found location<input required value={form.location} onChange={e => setForm(f => ({ ...f, location: e.target.value }))} /></label>
         <label>Photo of found item<input type="file" accept="image/png,image/jpeg,image/webp" onChange={e => { const f=e.target.files?.[0]; if(!f)return; if(f.size>2500000){setNotice('Photo must be 2.5 MB or smaller'); return} const r=new FileReader(); r.onload=()=>setForm(x => ({ ...x, foundItemImage:r.result })); r.readAsDataURL(f) }} /></label>
         <button className="primary" disabled={busy}>{busy ? 'Submitting...' : 'Report Found Item'}</button>
