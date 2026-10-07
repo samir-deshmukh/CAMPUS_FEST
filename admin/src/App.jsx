@@ -5,9 +5,11 @@ import './App.css'
 const API = import.meta.env.VITE_API_URL || 'http://localhost:8080/api'
 
 const limitWords = (value, max) => {
-  const words = value.trimStart().split(/\s+/)
-  if (value.trimStart() === '' || words.length <= max) return value
-  return words.slice(0, max).join(' ')
+  const matches = value.match(/\S+/g)
+  if (!matches || matches.length <= max) return value
+  const boundary = new RegExp('^\\s*(?:\\S+\\s*){' + max + '}')
+  const kept = value.match(boundary)
+  return kept ? kept[0].trimEnd() : value
 }
 async function api(path, options = {}) {
   const token = sessionStorage.getItem('campusfest_admin_token')

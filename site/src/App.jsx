@@ -6,9 +6,11 @@ import './App.css'
 const API = import.meta.env.VITE_API_URL || 'http://localhost:8080/api'
 
 const limitWords = (value, max) => {
-  const words = value.trimStart().split(/\s+/)
-  if (value.trimStart() === '' || words.length <= max) return value
-  return words.slice(0, max).join(' ')
+  const matches = value.match(/\S+/g)
+  if (!matches || matches.length <= max) return value
+  const boundary = new RegExp('^\\s*(?:\\S+\\s*){' + max + '}')
+  const kept = value.match(boundary)
+  return kept ? kept[0].trimEnd() : value
 }
 
 async function api(path, options = {}) {
@@ -84,7 +86,7 @@ function RegistrationForm({ event, close, submit }) {
     <h2>Register for {event.title}</h2><p className="muted">{event.description}</p>
     <form onSubmit={send}>
       <label>Full name<input required value={form.name} onChange={e => change('name', limitWords(e.target.value, 50))} /></label>
-      <label>Course<input required maxLength="100" value={form.course} onChange={e => change('course', e.target.value)} /></label>
+      <label>Course<input required value={form.course} onChange={e => change('course', limitWords(e.target.value, 50))} /></label>
       <label>Phone<input required type="tel" inputMode="numeric" pattern="[6-9][0-9]{9}" maxLength="10" title="Enter a valid 10-digit Indian mobile number" value={form.phone} onChange={e => change('phone', e.target.value.replace(/\D/g, '').slice(0,10))} /></label>
       {error && <div className="error">{error}</div>}
       <div className="actions"><button type="button" className="outline" onClick={close}>Cancel</button><button className="primary" disabled={busy}>{busy ? 'Registering…' : 'Register'}</button></div>
@@ -194,7 +196,7 @@ function LostFound({ setNotice }) {
       <div className="panel"><h2>Report a Found Item</h2><p className="muted">Report items you have found. Please submit the found item at the college Lost &amp; Found counter.</p><form onSubmit={submit}>
         <label>Full name<input required className={invalidFields.fullName ? 'inputInvalid' : ''} value={form.fullName} onChange={e => updateText('fullName', limitWords(e.target.value, 50))} /></label>
         <label>Mobile number<input required type="tel" inputMode="numeric" pattern="[6-9][0-9]{9}" maxLength="10" title="Enter a valid 10-digit Indian mobile number" className={form.phone.length > 0 && !/^[6-9][0-9]{9}$/.test(form.phone) ? 'inputInvalid' : ''} value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value.replace(/\D/g, '').slice(0,10) }))} /></label>
-        <label>Item name<input required maxLength="100" className={invalidFields.item ? 'inputInvalid' : ''} value={form.item} onChange={e => updateText('item', e.target.value)} /></label>
+        <label>Item name<input required className={invalidFields.item ? 'inputInvalid' : ''} value={form.item} onChange={e => updateText('item', limitWords(e.target.value, 50))} /></label>
         <label>Description<textarea required className={invalidFields.description ? 'inputInvalid' : ''} value={form.description} onChange={e => updateText('description', limitWords(e.target.value, 150))} /></label>
         <label>Found location<input required className={invalidFields.location ? 'inputInvalid' : ''} value={form.location} onChange={e => updateText('location', limitWords(e.target.value, 50))} /></label>
         <label>Photo of found item<input type="file" accept="image/png,image/jpeg,image/webp" onChange={e => { const f=e.target.files?.[0]; if(!f)return; if(f.size>2500000){setReportError('Photo must be 2.5 MB or smaller'); e.target.value=''; return} const r=new FileReader(); r.onload=()=>setForm(x => ({ ...x, foundItemImage:r.result })); r.readAsDataURL(f) }} /></label>

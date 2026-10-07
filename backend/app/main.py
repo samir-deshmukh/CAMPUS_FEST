@@ -253,8 +253,8 @@ def delete_event(event_id: int, _: dict = Depends(admin)):
 
 @app.post("/api/registrations/events/{event_id}")
 def register(event_id: int, x: RegistrationIn):
-    name = validate_text(x.name, "Name", 100)
-    course = validate_text(x.course, "Course", 100)
+    name = validate_text(x.name, "Name", 100, True, 50)
+    course = validate_text(x.course, "Course", 100, True, 50)
     if not valid_mobile(x.phone):
         raise HTTPException(400, "Enter a valid 10-digit Indian mobile number")
     with db() as c:
