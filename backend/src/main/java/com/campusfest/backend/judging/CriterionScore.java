@@ -1,0 +1,4 @@
+package com.campusfest.backend.judging;
+import jakarta.persistence.*;
+@Entity @Table(name="criterion_scores",uniqueConstraints=@UniqueConstraint(name="uk_criterion_score_evaluation_criterion",columnNames={"evaluation_id","criterion_id"}))
+public class CriterionScore{@Id @GeneratedValue(strategy=GenerationType.IDENTITY) Long id; @ManyToOne(fetch=FetchType.LAZY,optional=false) @JoinColumn(name="evaluation_id",nullable=false) Evaluation evaluation; @ManyToOne(fetch=FetchType.LAZY,optional=false) @JoinColumn(name="criterion_id",nullable=false) ScoringCriterion criterion; @Column(nullable=false) Integer score; public Long getId(){return id;} public Evaluation getEvaluation(){return evaluation;} public void setEvaluation(Evaluation v){evaluation=v;} public ScoringCriterion getCriterion(){return criterion;} public void setCriterion(ScoringCriterion v){criterion=v;} public Integer getScore(){return score;} public void setScore(Integer v){score=v;}}

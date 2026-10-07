@@ -1,0 +1,1 @@
+package com.campusfest.backend.judging; import jakarta.validation.constraints.*; import java.util.List; public record EvaluationRequest(@NotNull Long registrationId,@NotEmpty List<@NotNull CriterionScoreInput> scores){} record CriterionScoreInput(@NotNull Long criterionId,@NotNull @Min(0) Integer score){}

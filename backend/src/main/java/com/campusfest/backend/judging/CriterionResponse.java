@@ -1,0 +1,1 @@
+package com.campusfest.backend.judging; public record CriterionResponse(Long id,Long competitionId,String name,String description,Integer maxScore,Integer sortOrder){static CriterionResponse from(ScoringCriterion c){return new CriterionResponse(c.getId(),c.getCompetition().getId(),c.getName(),c.getDescription(),c.getMaxScore(),c.getSortOrder());}}
