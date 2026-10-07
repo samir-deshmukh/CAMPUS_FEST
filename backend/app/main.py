@@ -66,12 +66,6 @@ def init_db():
         );
         """)
         c.execute("UPDATE registrations SET course=college WHERE (course IS NULL OR course='') AND college IS NOT NULL AND college<>''")
-        c.execute("""
-        CREATE TABLE IF NOT EXISTS event_gallery(
-          id BIGSERIAL PRIMARY KEY, event_id BIGINT NOT NULL REFERENCES events(id) ON DELETE CASCADE,
-          photo_data TEXT NOT NULL, created_at TEXT NOT NULL
-        );
-        """)
 
 
 init_db()
@@ -485,48 +479,6 @@ def scanner_events(_: dict = Depends(scanner_user)):
             "SELECT id,title,status FROM events ORDER BY id DESC"
         ).fetchall()
         return [{"id": r["id"], "title": r["title"], "status": r["status"]} for r in rows]
-
-@app.get("/api/event-gallery")
-def public_event_gallery():
-    with db() as c:
-        rows = c.execute("""
-            SELECT g.id, g.event_id, e.title, g.photo_data
-            FROM event_gallery g JOIN events e ON e.id=g.event_id
-            ORDER BY g.id DESC
-        """).fetchall()
-        return [{"id": r["id"], "eventId": r["event_id"], "title": r["title"], "photoData": r["photo_data"]} for r in rows]
-
-@app.get("/api/admin/event-gallery")
-def admin_event_gallery(_: dict = Depends(admin)):
-    return public_event_gallery()
-
-class GalleryPhotoIn(BaseModel):
-    eventId: int
-    photoData: str
-
-@app.post("/api/admin/event-gallery")
-def add_event_gallery(x: GalleryPhotoIn, _: dict = Depends(admin)):
-    if not x.photoData.startswith("data:image/"):
-        raise HTTPException(400, "Please upload a valid image.")
-    if len(x.photoData) > 3500000:
-        raise HTTPException(400, "Gallery photo must be 2.5 MB or smaller.")
-    now = datetime.now(timezone.utc).isoformat()
-    with db() as c:
-        event = c.execute("SELECT id FROM events WHERE id=%s", (x.eventId,)).fetchone()
-        if not event: raise HTTPException(404, "Event not found")
-        row = c.execute(
-            "INSERT INTO event_gallery(event_id,photo_data,created_at) VALUES(%s,%s,%s) RETURNING id",
-            (x.eventId, x.photoData, now)
-        ).fetchone()
-        c.commit()
-        return {"id": row["id"]}
-
-@app.delete("/api/admin/event-gallery/{photo_id}")
-def delete_event_gallery(photo_id: int, _: dict = Depends(admin)):
-    with db() as c:
-        c.execute("DELETE FROM event_gallery WHERE id=%s", (photo_id,))
-        c.commit()
-    return {"ok": True}
 
 @app.post("/api/scanner/verify")
 def scanner_verify(passToken: str, eventId: int, _: dict = Depends(scanner_user)):
