@@ -158,8 +158,8 @@ function LostFound({ setNotice }) {
     e.preventDefault(); setBusy(true)
     try {
       const result = await api('/lost-found/' + claim.id + '/claim', { method: 'POST', body: JSON.stringify(claim.form) })
-      setNotice(result.message); setClaim(null)
-    } catch (x) { setNotice(x.message) } finally { setBusy(false) }
+      setNotice('Claim successful'); setClaim(null)
+    } catch (x) { setClaim(c => ({ ...c, error: x.message })) } finally { setBusy(false) }
   }
   return <section className="page"><h1>Lost &amp; Found</h1>
     <div className="lostGrid">
@@ -193,8 +193,9 @@ function ClaimForm({ claim, setClaim, submit, close, busy }) {
     <p className="muted">Enter your full name and mobile number to claim this item.</p>
     <form onSubmit={submit}>
       <label>Full name<input required value={claim.form.fullName} onChange={e => change('fullName',e.target.value)} /></label>
-      <label>Mobile number<input required type="tel" inputMode="numeric" value={claim.form.phone} onChange={e => change('phone',e.target.value)} /></label>
+      <label>Mobile number<input required type="tel" inputMode="numeric" pattern="[6-9][0-9]{9}" maxLength="10" title="Enter a valid 10-digit Indian mobile number" value={claim.form.phone} onChange={e => change('phone',e.target.value.replace(/\D/g, '').slice(0,10))} /></label>
       <label>Image of your lost item<input type="file" accept="image/png,image/jpeg,image/webp" onChange={e => { const f=e.target.files?.[0]; if(!f)return; if(f.size>2500000)return; const r=new FileReader(); r.onload=()=>change('lostItemImage',r.result); r.readAsDataURL(f) }} /></label>
+      {claim.error && <div className="error">{claim.error}</div>}
       <div className="formActions"><button type="button" className="outline" onClick={close}>Cancel</button><button className="primary" disabled={busy}>{busy ? 'Submitting…' : 'Claim'}</button></div>
     </form>
   </div></div>
