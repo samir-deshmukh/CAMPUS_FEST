@@ -16,6 +16,12 @@ public class User {
     @Column(nullable = false, unique = true, length = 190)
     private String email;
 
+    @Column(name="google_subject", unique=true, length=255)
+    private String googleSubject;
+
+    @Column(name="supabase_subject", unique=true, length=255)
+    private String supabaseSubject;
+
     @Column(nullable = false, length = 100)
     private String passwordHash;
 
@@ -37,6 +43,10 @@ public class User {
     public void setName(String name) { this.name = name; }
     public String getEmail() { return email; }
     public void setEmail(String email) { this.email = email.toLowerCase().trim(); }
+    public String getGoogleSubject() { return googleSubject; }
+    public void setGoogleSubject(String googleSubject) { this.googleSubject = googleSubject; }
+    public String getSupabaseSubject() { return supabaseSubject; }
+    public void setSupabaseSubject(String supabaseSubject) { this.supabaseSubject = supabaseSubject; }
     public String getPasswordHash() { return passwordHash; }
     public void setPasswordHash(String passwordHash) { this.passwordHash = passwordHash; }
     public Role getRole() { return role; }

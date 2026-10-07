@@ -22,9 +22,10 @@ public class AuthController {
     private final PasswordEncoder encoder;
     private final AuthenticationManager authenticationManager;
     private final JwtService jwtService;
+    private final com.campusfest.backend.service.SupabaseAuthService supabaseAuthService;
 
-    public AuthController(UserRepository users, PasswordEncoder encoder, AuthenticationManager authenticationManager, JwtService jwtService) {
-        this.users = users; this.encoder = encoder; this.authenticationManager = authenticationManager; this.jwtService = jwtService;
+    public AuthController(UserRepository users, PasswordEncoder encoder, AuthenticationManager authenticationManager, JwtService jwtService, com.campusfest.backend.service.SupabaseAuthService supabaseAuthService) {
+        this.users = users; this.encoder = encoder; this.authenticationManager = authenticationManager; this.jwtService = jwtService; this.supabaseAuthService = supabaseAuthService;
     }
 
     @PostMapping("/register")
@@ -50,6 +51,18 @@ public class AuthController {
             return response(user, jwtService.createToken(user));
         } catch (Exception e) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid credentials");
+        }
+    }
+
+    @PostMapping("/supabase")
+    public AuthResponse supabase(@Valid @RequestBody SupabaseLoginRequest request) {
+        try {
+            var result = supabaseAuthService.authenticate(request.accessToken());
+            return response(result.user(), result.token());
+        } catch (IllegalStateException e) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, e.getMessage());
+        } catch (IllegalArgumentException e) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, e.getMessage());
         }
     }
 

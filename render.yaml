@@ -17,6 +17,10 @@ services:
         sync: false
       - key: ADMIN_PASSWORD
         sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_PUBLISHABLE_KEY
+        sync: false
   - type: web
     name: Sai-Student
     runtime: static
@@ -25,6 +29,10 @@ services:
     envVars:
       - key: VITE_API_URL
         value: https://sai-backend.onrender.com/api
+      - key: VITE_SUPABASE_URL
+        sync: false
+      - key: VITE_SUPABASE_PUBLISHABLE_KEY
+        sync: false
   - type: web
     name: Sai
     runtime: static
