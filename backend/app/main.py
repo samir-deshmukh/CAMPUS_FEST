@@ -515,9 +515,9 @@ def scanner_user(authorization: str | None = Header(None)):
 def scanner_events(_: dict = Depends(scanner_user)):
     with db() as c:
         rows = c.execute(
-            "SELECT id,title,status FROM events ORDER BY id DESC"
+            "SELECT id,title,status,poster_data FROM events ORDER BY id DESC"
         ).fetchall()
-        return [{"id": r["id"], "title": r["title"], "status": r["status"]} for r in rows]
+        return [{"id": r["id"], "title": r["title"], "status": r["status"], "posterData": r["poster_data"]} for r in rows]
 
 @app.post("/api/scanner/verify")
 def scanner_verify(passToken: str, eventId: int, _: dict = Depends(scanner_user)):
