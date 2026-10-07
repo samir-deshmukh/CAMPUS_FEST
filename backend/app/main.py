@@ -407,6 +407,8 @@ def cancel_registration(passToken: str):
         r = c.execute("SELECT * FROM registrations WHERE pass_token=%s", (passToken,)).fetchone()
         if not r: raise HTTPException(404, "Pass not found")
         if r["status"] != "ACTIVE": raise HTTPException(409, "This registration is already cancelled.")
+        if r["entry_status"] == "ENTERED":
+            raise HTTPException(409, "This registration has already been used for entry and cannot be cancelled.")
         c.execute("UPDATE registrations SET status='CANCELLED' WHERE id=%s", (r["id"],))
         c.commit()
     return {"ok": True, "message": "Registration cancelled successfully. The pass is now invalid."}
