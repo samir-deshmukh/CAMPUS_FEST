@@ -14,6 +14,7 @@ const nav = [['events','Events'],['registrations','Registrations'],['lost','Lost
 export default function App() {
   const [admin,setAdmin]=useState(()=>JSON.parse(localStorage.getItem('campusfest_admin_user')||'null'))
   const [page,setPage]=useState('events'), [events,setEvents]=useState([]), [lost,setLost]=useState([]), [notice,setNotice]=useState(''), [editing,setEditing]=useState(null), [selectedEvent,setSelectedEvent]=useState(null)
+  useEffect(()=>{if(!notice)return;const timer=setTimeout(()=>setNotice(''),5000);return()=>clearTimeout(timer)},[notice])
   const load=async()=>{try{const [e,l]=await Promise.all([api('/events/all'),api('/admin/lost-found')]);setEvents(e);setLost(l)}catch(e){setNotice(e.message)}}
   useEffect(()=>{if(admin)load()},[admin])
   if(!admin)return <Login onLogin={u=>{setAdmin(u);localStorage.setItem('campusfest_admin_user',JSON.stringify(u));localStorage.setItem('campusfest_admin_token',u.token)}}/>
