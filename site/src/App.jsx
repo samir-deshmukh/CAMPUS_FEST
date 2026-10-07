@@ -26,13 +26,13 @@ export default function App() {
   const [notice, setNotice] = useState('')
   const [loading, setLoading] = useState(true)
 
-  const load = async () => {
-    setLoading(true)
+  const load = async (showLoading = false) => {
+    if (showLoading) setLoading(true)
     try { setEvents(await api('/events')) }
-    catch (e) { setNotice(e.message) }
-    finally { setLoading(false) }
+    catch (e) { if (showLoading) setNotice(e.message) }
+    finally { if (showLoading) setLoading(false) }
   }
-  useEffect(() => { load(); const timer=setInterval(load,5000); return()=>clearInterval(timer) }, [])
+  useEffect(() => { load(true); const timer=setInterval(() => load(false),5000); return()=>clearInterval(timer) }, [])
   useEffect(() => { if (!notice) return; const timer = setTimeout(() => setNotice(''), 3000); return () => clearTimeout(timer) }, [notice])
 
   const register = async form => {
@@ -142,7 +142,7 @@ function CancelRegistration({ setNotice }) {
 }
 
 function LostFound({ setNotice }) {
-  const [items, setItems] = useState([]), [form, setForm] = useState({ type: 'FOUND', fullName: '', phone: '', item: '', description: '', location: '', foundItemImage: '' }), [claim, setClaim] = useState(null), [busy, setBusy] = useState(false)
+  const [items, setItems] = useState([]), [form, setForm] = useState({ type: 'FOUND', fullName: '', phone: '', item: '', description: '', location: '', foundItemImage: '' }), [claim, setClaim] = useState(null), [busy, setBusy] = useState(false), [reportError, setReportError] = useState('')
   const load = async () => { try { setItems(await api('/lost-found')) } catch {} }
   useEffect(() => { load() }, [])
   const submit = async e => {
