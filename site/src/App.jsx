@@ -89,7 +89,7 @@ function RegistrationForm({ event, close, submit }) {
   return <div className="modal"><div className="modalCard"><button className="close" onClick={close}>×</button>
     <h2>Register for {event.title}</h2><p className="muted">{event.description}</p>
     <form onSubmit={send}>
-      <label>Full name<input required value={form.name} onChange={e => change('name', limitWords(e.target.value, 50))} /></label>
+      <label>Enter name<input required value={form.name} onChange={e => change('name', limitWords(e.target.value, 50))} /></label>
       <label>Course<input required value={form.course} onChange={e => change('course', limitWords(e.target.value, 50))} /></label>
       <label>Phone<input required type="tel" inputMode="numeric" pattern="[6-9][0-9]{9}" maxLength="10" title="Enter a valid 10-digit Indian mobile number" value={form.phone} onChange={e => change('phone', e.target.value.replace(/\D/g, '').slice(0,10))} /></label>
       {error && <div className="error">{error}</div>}
