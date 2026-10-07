@@ -365,6 +365,17 @@ def add_event_gallery(x: EventGalleryIn, _: dict = Depends(admin)):
         c.commit()
         return {"ok":True,"id":row["id"]}
 
+@app.put("/api/admin/event-gallery/{photo_id}")
+def update_event_gallery(photo_id:int, x: EventGalleryIn, _:dict=Depends(admin)):
+    description=validate_text(x.description, "Event description", 3000, False, 150)
+    with db() as c:
+        row=c.execute("SELECT id FROM event_gallery WHERE id=%s",(photo_id,)).fetchone()
+        if not row:
+            raise HTTPException(404,"Photo not found.")
+        c.execute("UPDATE event_gallery SET description=%s WHERE id=%s",(description,photo_id))
+        c.commit()
+    return {"ok":True}
+
 @app.delete("/api/admin/event-gallery/{photo_id}")
 def delete_event_gallery(photo_id:int, _:dict=Depends(admin)):
     with db() as c:
