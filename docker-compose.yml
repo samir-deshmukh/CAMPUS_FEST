@@ -1,0 +1,15 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: campusfest-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: campusfest
+      POSTGRES_USER: campusfest
+      POSTGRES_PASSWORD: campusfest_dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - campusfest_pgdata:/var/lib/postgresql/data
+volumes:
+  campusfest_pgdata:
