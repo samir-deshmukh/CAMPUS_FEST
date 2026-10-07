@@ -25,7 +25,19 @@ async function heartbeatAdminLock(){
 function releaseAdminLock(){
   const token=sessionStorage.getItem('campusfest_admin_token')
   if(!token)return
-  try{fetch(API+'/auth/admin-lock/release',{method:'POST',headers:{Authorization:'Bearer '+token,'X-Admin-Client-ID':TAB_ID},cache:'no-store',keepalive:true})}catch{}
+  const payload=JSON.stringify({token,clientId:TAB_ID})
+  try{
+    if(navigator.sendBeacon){
+      const blob=new Blob([payload],{type:'text/plain;charset=UTF-8'})
+      if(navigator.sendBeacon(API+'/auth/admin-lock/release',blob))return
+    }
+    fetch(API+'/auth/admin-lock/release',{
+      method:'POST',
+      headers:{Authorization:'Bearer '+token,'X-Admin-Client-ID':TAB_ID},
+      cache:'no-store',
+      keepalive:true
+    }).catch(()=>{})
+  }catch{}
 }
 
 const limitWords = (value, max) => {

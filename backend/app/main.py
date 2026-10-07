@@ -3,7 +3,7 @@ import psycopg
 from psycopg.rows import dict_row
 from datetime import datetime, timedelta, timezone
 import jwt
-from fastapi import FastAPI, HTTPException, Depends, Header
+from fastapi import FastAPI, HTTPException, Depends, Header, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -264,10 +264,35 @@ def admin_lock_heartbeat(authorization: str | None = Header(None), x_admin_clien
 
 
 @app.post("/api/auth/admin-lock/release")
-def admin_lock_release(_: dict = Depends(admin), x_admin_client_id: str | None = Header(None, alias=ADMIN_TAB_HEADER)):
-    client_id = _valid_admin_client_id(x_admin_client_id)
+async def admin_lock_release(request: Request, authorization: str | None = Header(None), x_admin_client_id: str | None = Header(None, alias=ADMIN_TAB_HEADER)):
+    # Normal fetch() can be cancelled while a tab is closing. The frontend therefore
+    # also uses navigator.sendBeacon() with a small text/plain JSON body.
+    body_client_id = None
+    body_token = None
+    try:
+        raw = await request.body()
+        if raw:
+            import json
+            data = json.loads(raw.decode("utf-8"))
+            body_client_id = data.get("clientId")
+            body_token = data.get("token")
+    except Exception:
+        pass
+
+    token = authorization[7:] if authorization and authorization.startswith("Bearer ") else body_token
+    client_id = _valid_admin_client_id(x_admin_client_id or body_client_id)
+    if not token:
+        raise HTTPException(401, "Authentication required")
     if not client_id:
         raise HTTPException(409, "Admin tab identity missing")
+
+    try:
+        payload = jwt.decode(token, SECRET, algorithms=["HS256"])
+    except Exception:
+        raise HTTPException(401, "Invalid or expired token")
+    if payload.get("role") != "ADMIN" or payload.get("clientId") != client_id:
+        raise HTTPException(401, "Invalid admin session")
+
     with db() as c:
         c.execute(
             "DELETE FROM admin_active_lock WHERE admin_key=%s AND client_id=%s",
