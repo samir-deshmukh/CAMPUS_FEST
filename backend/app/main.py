@@ -68,10 +68,12 @@ def init_db():
           id BIGSERIAL PRIMARY KEY,
           event_id BIGINT REFERENCES events(id) ON DELETE CASCADE,
           photo_data TEXT NOT NULL,
+          description TEXT NOT NULL DEFAULT '',
           created_at TEXT NOT NULL
         );
         """)
         c.execute("ALTER TABLE event_gallery ALTER COLUMN event_id DROP NOT NULL")
+        c.execute("ALTER TABLE event_gallery ADD COLUMN IF NOT EXISTS description TEXT NOT NULL DEFAULT ''")
         c.execute("UPDATE registrations SET course=college WHERE (course IS NULL OR course='') AND college IS NOT NULL AND college<>''")
 
 
@@ -313,25 +315,27 @@ async def admin_lock_release(request: Request, authorization: str | None = Heade
 @app.get("/api/event-gallery")
 def public_event_gallery():
     with db() as c:
-        rows=c.execute("SELECT g.id,g.event_id,e.title,g.photo_data FROM event_gallery g LEFT JOIN events e ON e.id=g.event_id ORDER BY g.id DESC").fetchall()
-        return [{"id":r["id"],"eventId":r["event_id"],"title":r["title"] or "", "photoData":r["photo_data"]} for r in rows]
+        rows=c.execute("SELECT g.id,g.event_id,e.title,g.photo_data,g.description FROM event_gallery g LEFT JOIN events e ON e.id=g.event_id ORDER BY g.id DESC").fetchall()
+        return [{"id":r["id"],"eventId":r["event_id"],"title":r["title"] or "", "photoData":r["photo_data"], "description":r["description"] or ""} for r in rows]
 
 @app.get("/api/admin/event-gallery")
 def admin_event_gallery(_: dict = Depends(admin)):
     with db() as c:
-        rows=c.execute("SELECT g.id,g.event_id,e.title,g.photo_data FROM event_gallery g LEFT JOIN events e ON e.id=g.event_id ORDER BY g.id DESC").fetchall()
-        return [{"id":r["id"],"eventId":r["event_id"],"title":r["title"] or "", "photoData":r["photo_data"]} for r in rows]
+        rows=c.execute("SELECT g.id,g.event_id,e.title,g.photo_data,g.description FROM event_gallery g LEFT JOIN events e ON e.id=g.event_id ORDER BY g.id DESC").fetchall()
+        return [{"id":r["id"],"eventId":r["event_id"],"title":r["title"] or "", "photoData":r["photo_data"], "description":r["description"] or ""} for r in rows]
 
 class EventGalleryIn(BaseModel):
     photoData: str
+    description: str = ""
 
 @app.post("/api/admin/event-gallery")
 def add_event_gallery(x: EventGalleryIn, _: dict = Depends(admin)):
     if not x.photoData.startswith("data:image/") or len(x.photoData)>3500000:
         raise HTTPException(400,"Upload a valid image up to 2.5 MB.")
+    description=validate_text(x.description, "Event description", 3000, False, 150)
     with db() as c:
         now=datetime.now(timezone.utc).isoformat()
-        row=c.execute("INSERT INTO event_gallery(event_id,photo_data,created_at) VALUES(NULL,%s,%s) RETURNING id",(x.photoData,now)).fetchone()
+        row=c.execute("INSERT INTO event_gallery(event_id,photo_data,description,created_at) VALUES(NULL,%s,%s,%s) RETURNING id",(x.photoData,description,now)).fetchone()
         c.commit()
         return {"ok":True,"id":row["id"]}
 

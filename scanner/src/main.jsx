@@ -5,7 +5,7 @@ import './style.css'
 
 const API=import.meta.env.VITE_API_URL||'http://localhost:8080/api'
 async function api(path,options={}){
-  const token=localStorage.getItem('campusfest_scanner_token')
+  const token=sessionStorage.getItem('campusfest_scanner_token')
   const r=await fetch(API+path,{...options,headers:{'Content-Type':'application/json',...(token?{Authorization:'Bearer '+token}:{}),...(options.headers||{})}})
   const j=await r.json().catch(()=>({}))
   if(!r.ok)throw Error(j.detail||'Request failed')
@@ -16,7 +16,7 @@ function Login({onLogin}){
   const[u,setU]=useState(''),[p,setP]=useState(''),[err,setErr]=useState(''),[busy,setBusy]=useState(false)
   const submit=async e=>{
     e.preventDefault();setBusy(true);setErr('')
-    try{const r=await api('/scanner/login',{method:'POST',body:JSON.stringify({username:u,password:p})});localStorage.setItem('campusfest_scanner_token',r.token);onLogin(true)}
+    try{const r=await api('/scanner/login',{method:'POST',body:JSON.stringify({username:u,password:p})});sessionStorage.setItem('campusfest_scanner_token',r.token);onLogin(true)}
     catch(x){setErr(x.message)}finally{setBusy(false)}
   }
   return <div className="auth"><div className="card"><span className="tag">CAMPUSFEST ENTRY</span><h1>QR Scanner Login</h1><p>Authorized event staff can use this scanner simultaneously on multiple devices.</p><form onSubmit={submit}><label>Scanner ID<input required maxLength="50" value={u} onChange={e=>setU(e.target.value)}/></label><label>Password<input required type="password" maxLength="100" value={p} onChange={e=>setP(e.target.value)}/></label>{err&&<div className="error">{err}</div>}<button disabled={busy}>{busy?'Signing in…':'Login'}</button></form></div></div>
@@ -58,7 +58,7 @@ function Scanner(){
   }
 
   return <div className="scanner">
-    <header><div><span className="tag">CAMPUSFEST</span><h1>Entry QR Scanner</h1></div><button className="ghost" onClick={()=>{localStorage.removeItem('campusfest_scanner_token');location.reload()}}>Logout</button></header>
+    <header><div><span className="tag">CAMPUSFEST</span><h1>Entry QR Scanner</h1></div><button className="ghost" onClick={()=>{sessionStorage.removeItem('campusfest_scanner_token');location.reload()}}>Logout</button></header>
     <main>
       {!selected&&!loading&&<section className="gallery">
         <div className="galleryIntro"><span className="tag">ENTRY</span><h2>Select Event</h2><p>Choose the event you are checking passes for.</p></div>
@@ -81,5 +81,5 @@ function Scanner(){
   </div>
 }
 
-function App(){const[logged,setLogged]=useState(!!localStorage.getItem('campusfest_scanner_token'));return logged?<Scanner/>:<Login onLogin={setLogged}/>}
+function App(){const[logged,setLogged]=useState(!!sessionStorage.getItem('campusfest_scanner_token'));return logged?<Scanner/>:<Login onLogin={setLogged}/>}
 createRoot(document.getElementById('root')).render(<App/>)
