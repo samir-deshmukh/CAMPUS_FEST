@@ -36,5 +36,40 @@ function EventForm({event,close,load,notice}){const[form,setForm]=useState({titl
 function Registrations({events,selectedEvent,setSelectedEvent}){const[rows,setRows]=useState([]),[event,setEvent]=useState(null),[busy,setBusy]=useState(false);useEffect(()=>{if(!selectedEvent){setRows([]);setEvent(null);return}let live=true;setBusy(true);api('/admin/events/'+selectedEvent+'/registrations').then(r=>{if(live){setEvent(r.event);setRows(r.registrations)}}).catch(e=>{if(live){setRows([]);setEvent(null)}}).finally(()=>live&&setBusy(false));return()=>{live=false}},[selectedEvent]);return <section className="content"><div className="panelHead"><div><h2>Event registrations</h2><p className="muted">Select an event to view only its registered students.</p></div><select value={selectedEvent||''} onChange={e=>setSelectedEvent(e.target.value?Number(e.target.value):null)}><option value="">Select event</option>{events.map(e=><option key={e.id} value={e.id}>{e.title}</option>)}</select></div>{event&&<div className="selectedEvent"><strong>{event.title}</strong><span>{rows.length} registration{rows.length===1?'':'s'}</span></div>}{busy?<div className="empty">Loading registrations…</div>:event&&rows.length?<div className="table"><div className="thead"><b>Student</b><b>Event</b><b>Status</b><b>Registered</b></div>{rows.map(r=><div className="tr" key={r.id}><span>{r.name}<small>{r.studentEmail} · {r.phone}</small></span><span>{r.eventTitle}</span><span className="badge">{r.status}</span><span>{new Date(r.registeredAt).toLocaleString()}</span></div>)}</div>:<div className="empty">{event?'No registrations for this event.':'Choose an event above.'}</div>}</section>}
 
 
-function LostAdmin({rows,load,notice}){const[claims,setClaims]=useState([]);const loadClaims=async()=>{try{setClaims(await api('/admin/lost-found/claims'))}catch(e){notice(e.message)}};useEffect(()=>{loadClaims()},[]);const verify=async id=>{try{await api('/admin/lost-found/'+id+'/verify',{method:'POST'});notice('Found item verified and published.');load()}catch(e){notice(e.message)}};const resolve=async id=>{try{await api('/admin/lost-found/'+id+'/resolve',{method:'POST'});notice('Report resolved.');load()}catch(e){notice(e.message)}};const claimAction=async(id,action)=>{try{await api('/admin/lost-found/claims/'+id+'/'+action,{method:'POST'});notice(action==='approve'?'Claim approved and item resolved.':'Claim rejected.');loadClaims();load()}catch(e){notice(e.message)}};return <section className="content"><h2 className="sectionTitle">Claims</h2><div className="adminReports">{claims.map(c=><article className="report" key={c.id}><div className="badges"><span className="badge">{c.status}</span></div><h3>{c.fullName}</h3><p><b>College:</b> {c.college} · {c.course} · Year {c.year}</p><p><b>Email:</b> {c.email} · <b>Phone:</b> {c.phone}</p><p><b>Identification:</b> {c.identificationDetails}</p>{c.lostWhenWhere&&<p><b>Lost:</b> {c.lostWhenWhere}</p>}{c.lostItemImage&&<img className="claimImage" src={c.lostItemImage} alt="Lost item submitted by claimant" />}{c.status==='PENDING'&&<div className="actions"><button className="outline" onClick={()=>claimAction(c.id,'reject')}>Reject Claim</button><button className="primary" onClick={()=>claimAction(c.id,'approve')}>Approve &amp; Mark Returned</button></div>}</article>)}</div>{!claims.length&&<div className="empty">No claims.</div>}<h2 className="sectionTitle">Reports</h2><div className="adminReports">{rows.map(r=><article className="report" key={r.id}><div className="badges"><span className="badge">{r.type}</span><span className="badge">{r.status}</span></div><h3>{r.item}</h3><p>{r.description}</p><small>{r.location} · {r.contact}</small>{r.found_item_image&&<img className="claimImage" src={r.found_item_image} alt="Found item" />}{r.status==='PENDING'&&<button className="primary" onClick={()=>verify(r.id)}>Verify &amp; Publish</button>}{r.status==='VERIFIED'&&<button className="outline" onClick={()=>resolve(r.id)}>Mark Resolved</button>}</article>)}</div>{!rows.length&&<div className="empty">No lost &amp; found reports.</div>}</section>}
-
+function LostAdmin({rows,load,notice}) {
+  const [openClaim,setOpenClaim]=useState(null)
+  const verify=async id=>{try{await api('/admin/lost-found/'+id+'/verify',{method:'POST'});notice('Found item verified and published.');load()}catch(e){notice(e.message)}}
+  const resolve=async id=>{try{await api('/admin/lost-found/'+id+'/resolve',{method:'POST'});notice('Report resolved.');load()}catch(e){notice(e.message)}}
+  const claimAction=async(id,action)=>{try{await api('/admin/lost-found/claims/'+id+'/'+action,{method:'POST'});notice(action==='approve'?'Claim approved and item resolved.':'Claim rejected.');setOpenClaim(null);load()}catch(e){notice(e.message)}}
+  return <section className="content">
+    <div className="sectionIntro"><div><h2 className="sectionTitle">Lost &amp; Found Reports</h2><p className="muted">Each report and its claims are kept together in one case.</p></div></div>
+    <div className="adminReports">{rows.map(r=>{
+      const pending=(r.claims||[]).filter(c=>c.status==='PENDING'), latest=pending[0]
+      return <article className="report" key={r.id}>
+        <div className="reportHeader"><div><span className="eyebrow">REPORT #{r.id}</span><h3>{r.item}</h3></div><div className="badges"><span className="badge">{r.type}</span><span className="badge">{r.status}</span>{pending.length>0&&<span className="claimAlert">{pending.length} claim{pending.length===1?'':'s'} received</span>}</div></div>
+        <div className="reportGrid">
+          <div className="reportField"><span>Found location</span><strong>{r.location}</strong></div>
+          <div className="reportField"><span>Reported by</span><strong>{(r.contact||'').split(' | ')[0]}</strong></div>
+          <div className="reportField"><span>Reporter mobile</span><strong>{(r.contact||'').split(' | ')[1]||'—'}</strong></div>
+          <div className="reportField"><span>Status</span><strong>{r.status}</strong></div>
+        </div>
+        <div className="reportDescription"><span>Description</span><p>{r.description}</p></div>
+        {r.found_item_image&&<div className="reportPhoto"><span>Found item photo</span><img className="claimImage" src={r.found_item_image} alt="Found item" /></div>}
+        {latest&&<div className="claimNotice"><div><strong>Claim received</strong><span>{latest.fullName} says this item is theirs.</span></div><button className="primary" onClick={()=>setOpenClaim(openClaim===latest.id?null:latest.id)}>{openClaim===latest.id?'Hide Claim':'View Claim'}</button></div>}
+        {openClaim&&<>{(r.claims||[]).filter(c=>c.id===openClaim).map(c=><div className="claimPanel" key={c.id}>
+          <div className="claimPanelHead"><div><span className="eyebrow">CLAIM #{c.id}</span><h4>Claimant details</h4></div><span className="badge">{c.status}</span></div>
+          <div className="reportGrid">
+            <div className="reportField"><span>Full name</span><strong>{c.fullName}</strong></div><div className="reportField"><span>Mobile</span><strong>{c.phone}</strong></div>
+            <div className="reportField"><span>Email</span><strong>{c.email||'—'}</strong></div><div className="reportField"><span>College / Course / Year</span><strong>{[c.college,c.course,c.year].filter(Boolean).join(' · ')||'—'}</strong></div>
+          </div>
+          <div className="reportDescription"><span>Identification</span><p>{c.identificationDetails||'—'}</p></div>
+          {c.lostWhenWhere&&<div className="reportDescription"><span>Where / when lost</span><p>{c.lostWhenWhere}</p></div>}
+          {c.lostItemImage&&<div className="reportPhoto"><span>Claimant photo</span><img className="claimImage" src={c.lostItemImage} alt="Lost item submitted by claimant" /></div>}
+          {c.status==='PENDING'&&<div className="actions"><button className="outline" onClick={()=>claimAction(c.id,'reject')}>Reject Claim</button><button className="primary" onClick={()=>claimAction(c.id,'approve')}>Approve &amp; Mark Returned</button></div>}
+        </div>)}</>}
+        <div className="actions">{r.status==='PENDING'&&<button className="primary" onClick={()=>verify(r.id)}>Verify &amp; Publish</button>}{r.status==='VERIFIED'&&<button className="outline" onClick={()=>resolve(r.id)}>Mark Resolved</button>}</div>
+      </article>
+    })}</div>
+    {!rows.length&&<div className="empty">No lost &amp; found reports.</div>}
+  </section>
+}

@@ -397,7 +397,15 @@ def claim_lost_item(item_id: int, x: LostFoundClaimIn):
 @app.get("/api/admin/lost-found")
 def admin_lost_found(_: dict = Depends(admin)):
     with db() as c:
-        return [lost_json(r) for r in c.execute("SELECT * FROM lost_found ORDER BY id DESC")]
+        reports = c.execute("SELECT * FROM lost_found ORDER BY id DESC").fetchall()
+        out = []
+        for report in reports:
+            claims = c.execute(
+                "SELECT * FROM lost_found_claims WHERE item_id=%s ORDER BY id DESC",
+                (report["id"],)
+            ).fetchall()
+            out.append({**lost_json(report), "claims": [claim_json(claim) for claim in claims]})
+        return out
 
 @app.get("/api/admin/lost-found/claims")
 def admin_lost_found_claims(_: dict = Depends(admin)):
