@@ -168,6 +168,8 @@ def health():
 
 @app.post("/api/auth/login")
 def login(x: Login):
+    if len(x.username) > 50 or len(x.password) > 100:
+        raise HTTPException(400, "Input is too long")
     if x.username.casefold() != ADMIN_USER.casefold() or x.password != ADMIN_PASS:
         raise HTTPException(401, "Invalid credentials")
     now = datetime.now(timezone.utc)
@@ -322,6 +324,8 @@ def verify(passToken: str, _: dict = Depends(admin)):
 
 @app.post("/api/scanner/login")
 def scanner_login(x: Login):
+    if len(x.username) > 50 or len(x.password) > 100:
+        raise HTTPException(400, "Input is too long")
     if x.username.casefold() != ADMIN_USER.casefold() or x.password != ADMIN_PASS:
         raise HTTPException(401, "Invalid credentials")
     now = datetime.now(timezone.utc)
@@ -407,7 +411,7 @@ def create_lost_found(x: LostFoundIn):
     full_name = validate_text(x.fullName, "Full name", 100)
     item = validate_text(x.item, "Item name", 100)
     description = validate_text(x.description, "Item description", 1000)
-    location = validate_text(x.location, "Found location", 200)
+    location = validate_text(x.location, "Found location", 150)
     now = datetime.now(timezone.utc).isoformat()
     with db() as c:
         cur = c.execute(

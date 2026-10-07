@@ -186,7 +186,7 @@ function LostFound({ setNotice }) {
   return <section className="page"><h1>Lost &amp; Found</h1>
     <div className="lostGrid">
       <div className="panel"><h2>Report a Found Item</h2><p className="muted">Report items you have found. Please submit the found item at the college Lost &amp; Found counter.</p><form onSubmit={submit}>
-        <label>Full name<input required className={invalidFields.fullName ? 'inputInvalid' : ''} value={form.fullName} onChange={e => updateText('fullName', e.target.value)} /></label>
+        <label>Full name<input required maxLength="100" className={invalidFields.fullName ? 'inputInvalid' : ''} value={form.fullName} onChange={e => updateText('fullName', e.target.value)} /></label>
         <label>Mobile number<input required type="tel" inputMode="numeric" pattern="[6-9][0-9]{9}" maxLength="10" title="Enter a valid 10-digit Indian mobile number" className={form.phone.length > 0 && !/^[6-9][0-9]{9}$/.test(form.phone) ? 'inputInvalid' : ''} value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value.replace(/\D/g, '').slice(0,10) }))} /></label>
         <label>Item name<input required maxLength="100" className={invalidFields.item ? 'inputInvalid' : ''} value={form.item} onChange={e => updateText('item', e.target.value)} /></label>
         <label>Description<textarea required maxLength="1000" className={invalidFields.description ? 'inputInvalid' : ''} value={form.description} onChange={e => updateText('description', e.target.value)} /></label>
