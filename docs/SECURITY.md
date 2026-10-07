@@ -2,9 +2,9 @@
 
 ## 1. Security scope
 
-This document describes the **active** security implementation in `backend/app/main.py`, `site/`, `admin/`, and `scanner/`. The Spring Boot code under `backend/src/main/java/` is legacy prototype code and is not part of the active deployment path.
+This document describes the **active** security implementation in `backend/app/main.py`, `site/`, `admin/`, and `scanner/`.
 
-The review covers authentication, authorization, token handling, input validation, database access, uploads, browser security, secret handling, and dependency checks available in the development environment.
+The review covers authentication, authorization, token handling, input validation, database access, uploads, browser security, secret handling, dependency checks and repository hygiene.
 
 ## 2. Authentication
 
@@ -114,7 +114,7 @@ Production deployment must set this variable to the exact student/admin/scanner 
 | Unrestricted image data-URI types | Medium | Fixed |
 | Unbounded public gallery response | Medium | Fixed |
 | Missing baseline API security headers | Medium | Fixed |
-| Documentation described a different Spring Boot system | High | Fixed |
+| Documentation described an outdated backend architecture | High | Fixed |
 
 ## 11. Remaining production hardening
 

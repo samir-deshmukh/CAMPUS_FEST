@@ -1,4 +1,0 @@
-package com.campusfest.backend.judging;
-import com.campusfest.backend.competition.Competition; import com.campusfest.backend.entity.User; import jakarta.persistence.*;
-@Entity @Table(name="judge_assignments",uniqueConstraints=@UniqueConstraint(name="uk_judge_assignment",columnNames={"competition_id","judge_id"}),indexes=@Index(name="idx_assignment_judge",columnList="judge_id"))
-public class JudgeAssignment{@Id @GeneratedValue(strategy=GenerationType.IDENTITY) Long id; @ManyToOne(fetch=FetchType.LAZY,optional=false) @JoinColumn(name="competition_id",nullable=false) Competition competition; @ManyToOne(fetch=FetchType.LAZY,optional=false) @JoinColumn(name="judge_id",nullable=false) User judge; public Long getId(){return id;} public Competition getCompetition(){return competition;} public void setCompetition(Competition v){competition=v;} public User getJudge(){return judge;} public void setJudge(User v){judge=v;}}

@@ -1,3 +1,0 @@
-package com.campusfest.backend.judging;
-import jakarta.validation.constraints.*;
-public class CriterionRequest{@NotBlank @Size(max=120) String name; @Size(max=1000) String description; @NotNull @Min(1) Integer maxScore; @Min(0) Integer sortOrder=0; public String getName(){return name;} public void setName(String v){name=v;} public String getDescription(){return description;} public void setDescription(String v){description=v;} public Integer getMaxScore(){return maxScore;} public void setMaxScore(Integer v){maxScore=v;} public Integer getSortOrder(){return sortOrder;} public void setSortOrder(Integer v){sortOrder=v;}}

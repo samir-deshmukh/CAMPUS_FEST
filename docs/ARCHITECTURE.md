@@ -16,8 +16,6 @@ The three web clients share one FastAPI backend. PostgreSQL is the source of tru
 - `admin/` – authenticated administration client
 - `scanner/` – authenticated QR entry client
 - `backend/app/main.py` – active API and database logic
-- `backend/src/main/java/` – legacy Spring Boot prototype, not deployed
-- `mobile/` – Flutter prototype
 - `docs/` – project documentation
 
 ## 3. Request flow
@@ -56,10 +54,6 @@ QR verification reads and updates the registration in one transaction so a used 
 ### Database-stored images
 Small images are stored as base64 data URIs to keep the academic deployment simple. This is suitable for the current scale, not for a large media library.
 
-## 7. Legacy code
-
-The repository still contains a Java/Spring Boot implementation from an earlier architecture. It should not be mixed with the active Python API when modifying the system. If the Java prototype is permanently abandoned, it can be removed in a separate cleanup change after confirming no coursework requires it.
-
-## 8. Deployment
+## 7. Deployment
 
 Render runs the FastAPI backend as a web service and the React clients as static sites. Environment variables supply secrets, database connection information, CORS origins, and frontend API URLs.

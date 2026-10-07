@@ -10,8 +10,7 @@
 6. Python dependency advisory scanning was not available on the current review machine.
 7. Automated end-to-end tests against PostgreSQL are still limited.
 8. Schema changes are applied at application startup rather than through versioned migrations.
-9. The Java/Spring Boot implementation is legacy and can confuse contributors unless they read the architecture document.
-10. Competition, judging and official-result functionality exists only in the legacy Java prototype, not the active Python API.
+10. Competition, judging and official-result functionality is outside the current active Python API scope.
 
 ## Future scope
 
@@ -24,5 +23,4 @@
 - Add CI SAST, dependency scanning and DAST.
 - Add integration tests with PostgreSQL.
 - Define personal-data retention and deletion rules.
-- Remove the legacy Java prototype after confirming it is no longer required academically.
 - Add competition/judging functionality to the active API only if it is still required by the project scope.

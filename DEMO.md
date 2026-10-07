@@ -4,8 +4,6 @@
 
 The current demo uses a React/Vite student site, React/Vite admin panel, React/Vite QR scanner, FastAPI backend and PostgreSQL database.
 
-The Java/Spring Boot code is legacy and is not used by the current deployment.
-
 ## Quick flow
 
 1. Start PostgreSQL and the FastAPI backend.
