@@ -87,7 +87,7 @@ function RegistrationForm({ event, close, submit }) {
   const change = (key, value) => setForm(f => ({ ...f, [key]: value }))
   const send = async e => { e.preventDefault(); setError(''); setBusy(true); try { await submit(form) } catch (x) { setError(x.message) } finally { setBusy(false) } }
   return <div className="modal"><div className="modalCard"><button className="close" onClick={close}>×</button>
-    <h2>Register for {event.title}</h2><p className="muted">{event.description}</p>
+    <h2>Register for {event.title}</h2>
     <form onSubmit={send}>
       <label>Enter name<input required value={form.name} onChange={e => change('name', limitWords(e.target.value, 50))} /></label>
       <label>Course<input required value={form.course} onChange={e => change('course', limitWords(e.target.value, 50))} /></label>
