@@ -97,6 +97,8 @@ def verify_scanner_password(password: str, stored: str) -> bool:
     except Exception:
         return False
 
+init_db()
+
 with db() as _c:
     _row = _c.execute("SELECT id FROM scanner_credentials WHERE id=1").fetchone()
     if not _row:
