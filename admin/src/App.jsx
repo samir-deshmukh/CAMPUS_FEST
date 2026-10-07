@@ -65,18 +65,23 @@ function LostAdmin({rows,load,notice}) {
     <div className="sectionIntro"><div><h2 className="sectionTitle">Lost &amp; Found Reports</h2><p className="muted">Each report and its claims are kept together in one case.</p></div></div>
     <div className="adminReports">{rows.map(r=>{
       const pending=(r.claims||[]).filter(c=>c.status==='PENDING'), latest=pending[0]
-      return <article className="report reportClickable" key={r.id} onClick={()=>setSelectedReport(r.id)}>
-        <div className="reportHeader"><div><span className="eyebrow">REPORT #{r.id}</span><h3>{r.item}</h3></div><div className="badges"><span className="badge">{r.type}</span><span className="badge">{r.status}</span>{pending.length>0&&<span className="claimAlert">{pending.length} claim{pending.length===1?'':'s'} received</span>}</div></div>
-        <div className="reportGrid">
-          <div className="reportField"><span>Found location</span><strong>{r.location}</strong></div>
-          <div className="reportField"><span>Reported by</span><strong>{(r.contact||'').split(' | ')[0]}</strong></div>
-          <div className="reportField"><span>Reporter mobile</span><strong>{(r.contact||'').split(' | ')[1]||'—'}</strong></div>
-          <div className="reportField"><span>Status</span><strong>{r.status}</strong></div>
+      return <article className="adminLostRow reportClickable" key={r.id} onClick={()=>setSelectedReport(r.id)}>
+        <div className="adminLostInfo">
+          <div className="reportHeader"><div><span className="eyebrow">REPORT #{r.id}</span><h3>{r.item}</h3></div></div>
+          <div className="adminLostMeta"><span>{r.location}</span><span>{(r.contact||'').split(' | ')[0]}</span><span>{(r.contact||'').split(' | ')[1]||'—'}</span></div>
+          <p>{r.description}</p>
+          <div className="adminLostStatus">
+            {r.status==='VERIFIED'&&<span className="badge">VERIFIED</span>}
+            {r.status==='RESOLVED'&&<span className="badge">RESOLVED</span>}
+            {pending.length>0&&<span className="claimAlert">{pending.length} claim{pending.length===1?'':'s'} received</span>}
+          </div>
         </div>
-        <div className="reportDescription"><span>Description</span><p>{r.description}</p></div>
-        {r.found_item_image&&<div className="reportPhoto"><span>Found item photo</span><img className="claimImage clickableImage" src={r.found_item_image} alt="Found item" onClick={e=>{e.stopPropagation();setLightbox(r.found_item_image)}} /></div>}
-        {latest&&<div className="claimNotice"><div><strong>Claim received</strong><span>{latest.fullName} says this item is theirs.</span></div><button className="primary" onClick={e=>{e.stopPropagation();setOpenClaim(openClaim===latest.id?null:latest.id)}}>{openClaim===latest.id?'Hide Claim':'View Claim'}</button></div>}
-        {openClaim&&<>{(r.claims||[]).filter(c=>c.id===openClaim).map(c=><div className="claimPanel" key={c.id}>
+        <div className="adminLostImage">{r.found_item_image?<img className="claimImage clickableImage" src={r.found_item_image} alt="Found item" onClick={e=>{e.stopPropagation();setLightbox(r.found_item_image)}}/>:<div className="noPoster">No image</div>}</div>
+        <div className="adminLostActions">
+          {r.status==='PENDING'&&<button className="primary" onClick={e=>{e.stopPropagation();verify(r.id)}}>Verify &amp; Publish</button>}
+          {latest&&<button className="outline" onClick={e=>{e.stopPropagation();setOpenClaim(openClaim===latest.id?null:latest.id)}}>{openClaim===latest.id?'Hide Claim':'View Claim'}</button>}
+        </div>
+        {openClaim&&<>{(r.claims||[]).filter(c=>c.id===openClaim).map(c=><div className="claimPanel adminLostClaim" key={c.id}>
           <div className="claimPanelHead"><div><span className="eyebrow">CLAIM #{c.id}</span><h4>Claimant details</h4></div><span className="badge">{c.status}</span></div>
           <div className="reportGrid">
             <div className="reportField"><span>Full name</span><strong>{c.fullName}</strong></div><div className="reportField"><span>Mobile</span><strong>{c.phone}</strong></div>
@@ -84,10 +89,9 @@ function LostAdmin({rows,load,notice}) {
           </div>
           <div className="reportDescription"><span>Identification</span><p>{c.identificationDetails||'—'}</p></div>
           {c.lostWhenWhere&&<div className="reportDescription"><span>Where / when lost</span><p>{c.lostWhenWhere}</p></div>}
-          {c.lostItemImage&&<div className="reportPhoto"><span>Claimant photo</span><img className="claimImage" src={c.lostItemImage} alt="Lost item submitted by claimant" /></div>}
+          {c.lostItemImage&&<div className="reportPhoto"><span>Claimant photo</span><img className="claimImage" src={c.lostItemImage} alt="Lost item submitted by claimant"/></div>}
           {c.status==='PENDING'&&<div className="actions"><button className="outline" onClick={()=>claimAction(c.id,'reject')}>Reject Claim</button><button className="primary" onClick={()=>claimAction(c.id,'approve')}>Approve &amp; Mark Returned</button></div>}
         </div>)}</>}
-        <div className="actions">{r.status==='PENDING'&&<button className="primary" onClick={e=>{e.stopPropagation();verify(r.id)}}>Verify &amp; Publish</button>}</div>
       </article>
     })}</div>
     {!rows.length&&<div className="empty">No lost &amp; found reports.</div>}
