@@ -68,7 +68,8 @@ def init_db():
         CREATE TABLE IF NOT EXISTS scanner_credentials(
           id INTEGER PRIMARY KEY CHECK (id=1),
           username TEXT NOT NULL,
-          password_hash TEXT NOT NULL
+          password_hash TEXT NOT NULL,
+          is_default BOOLEAN NOT NULL DEFAULT FALSE
         );
         CREATE TABLE IF NOT EXISTS event_gallery(
           id BIGSERIAL PRIMARY KEY,
@@ -80,6 +81,7 @@ def init_db():
         """)
         c.execute("ALTER TABLE event_gallery ALTER COLUMN event_id DROP NOT NULL")
         c.execute("ALTER TABLE event_gallery ADD COLUMN IF NOT EXISTS description TEXT NOT NULL DEFAULT ''")
+        c.execute("ALTER TABLE scanner_credentials ADD COLUMN IF NOT EXISTS is_default BOOLEAN NOT NULL DEFAULT FALSE")
         c.execute("ALTER TABLE admin_active_lock DROP CONSTRAINT IF EXISTS admin_active_lock_pkey")
         c.execute("ALTER TABLE admin_active_lock ADD PRIMARY KEY(admin_key, client_id)")
         c.execute("UPDATE registrations SET course=college WHERE (course IS NULL OR course='') AND college IS NOT NULL AND college<>''")
@@ -103,9 +105,14 @@ def verify_scanner_password(password: str, stored: str) -> bool:
 init_db()
 
 with db() as _c:
-    _row = _c.execute("SELECT id FROM scanner_credentials WHERE id=1").fetchone()
+    _row = _c.execute("SELECT id,username,is_default FROM scanner_credentials WHERE id=1").fetchone()
     if not _row:
-        _c.execute("INSERT INTO scanner_credentials(id,username,password_hash) VALUES(1,%s,%s)", (ADMIN_USER, hash_scanner_password(ADMIN_PASS)))
+        _c.execute("INSERT INTO scanner_credentials(id,username,password_hash,is_default) VALUES(1,%s,%s,FALSE)", ("", hash_scanner_password(ADMIN_PASS)))
+        _c.commit()
+    elif not _row["is_default"] and _row["username"].casefold() == ADMIN_USER.casefold():
+        # One-time migration: remove the old hardcoded SAI scanner ID that was
+        # created by the original initialization. Do not affect future changes.
+        _c.execute("UPDATE scanner_credentials SET username='', is_default=TRUE WHERE id=1")
         _c.commit()
 
 class Login(BaseModel):
@@ -601,7 +608,7 @@ def scanner_login(x: Login):
         "sub": ADMIN_USER, "role": "SCANNER", "iat": int(now.timestamp()),
         "exp": int((now + timedelta(hours=8)).timestamp())
     }, SECRET, algorithm="HS256")
-    return {"token": token, "username": ADMIN_USER, "role": "SCANNER"}
+    return {"token": token, "username": row["username"], "role": "SCANNER"}
 
 def scanner_user(authorization: str | None = Header(None)):
     if not authorization or not authorization.startswith("Bearer "):
