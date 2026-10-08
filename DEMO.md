@@ -1,47 +1,25 @@
-# CampusFest — Offline Demo
+# CampusFest Website Demo
 
-## Run
+CampusFest consists of a public student website, an administrator website, and a FastAPI/PostgreSQL backend.
 
-The project is designed for a 3-day academic demonstration. No backend, database, cloud service, API, or internet connection is required for the website demo.
+## Student flow
+1. Open the Events page.
+2. Select a published event and register.
+3. Download the generated CampusFest entry pass.
+4. Use Cancel Registration with the downloaded pass image when required.
+5. Report or claim items through Lost & Found.
+6. View event photos in Event Gallery.
 
-From `admin/`:
+## Admin flow
+1. Open the admin website and sign in.
+2. Create, edit, publish, close, reopen, or delete events.
+3. Open an event to view registrations.
+4. Manage event-gallery photos.
+5. Review Lost & Found reports and claims.
 
-```bash
-npm ci
-npm run dev
-```
+## Build checks
+Student website: npm ci && npm run build
+Admin website: npm ci && npm run build
+Backend: python -m compileall app
 
-For a static build:
-
-```bash
-npm run build
-```
-
-Open `admin/dist/index.html` from the built output. Vite is configured with a relative base so generated assets use relative paths.
-
-## Demo flow
-
-1. Open CampusFest Overview.
-2. Go to Events and filter by Cultural, Technical, Arts, or Academic.
-3. Register for an event.
-4. Open My Passes and show the generated entry pass.
-5. Open Master Schedule and Campus Map.
-6. Open Official Results and explain that rankings use judge scores and tied ranks are supported.
-7. Open Lost & Found and submit a sample report.
-8. Switch the role selector to Organizer and show the organizer operations dashboard.
-9. Switch to Judge and show the judging workspace.
-10. Return to Student for the final walkthrough.
-
-## Important scope decision
-
-The Flutter mobile app and live deployment were intentionally removed from the 3-day deliverable. The Spring Boot backend remains in the repository as supporting architecture, but the demonstrated product is the offline React website.
-
-## Roles represented
-
-- Student — discover, register, passes, schedule, results, map, lost & found, profile
-- Organizer — event operations and result publication workflow
-- Judge — assigned competition evaluation workflow
-
-## Data
-
-The website uses local mock data for predictable offline demonstration. It does not claim to be connected to the production backend.
+This repository is website-only. The former Flutter client, standalone scanner client, and unused Spring Boot backend have been removed.

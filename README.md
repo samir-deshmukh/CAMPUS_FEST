@@ -1,61 +1,46 @@
-# CampusFest – Smart Event Management App
+# CampusFest – Smart Event Management Website
 
-CampusFest is a college event-management project covering event discovery, registration, entry passes, competitions, judging and official results.
+CampusFest is a college event-management website with a public student site, an administrator panel, and a FastAPI/PostgreSQL backend.
 
-## Current academic deliverable
-The immediate submission is an **offline React website demo**. It does not require hosting or an internet connection and is intentionally independent of the backend at runtime.
+## Included
+- site/ — public student website for events, registration, entry passes, registration cancellation, Lost & Found, and event gallery.
+- admin/ — administrator website for events, registrations, gallery photos, and Lost & Found.
+- backend/ — FastAPI REST API and PostgreSQL integration.
+- docs/ — current project documentation.
+- render.yaml — Render deployment configuration.
 
-The repository also contains a **Spring Boot 4 / Java 21 backend foundation** with PostgreSQL persistence, JWT authentication, role-based authorization, event registration, entry passes, competition management, judge scoring and result publication.
+The repository intentionally contains website and backend code only. The old Flutter client and separate QR-scanner client have been removed.
 
-The Flutter mobile application is retained in the repository as future work but is **not part of the current 3-day website deliverable**.
+## Local development
+Student website:
+  cd site
+  npm ci
+  npm run dev
 
-## Repository structure
-- `admin/` – offline React/Vite website demo
-- `backend/` – Spring Boot REST API and domain logic
-- `mobile/` – Flutter prototype/future client
-- `docs/` – project requirements, architecture, database, API, security, testing and user documentation
-- `DEMO.md` – quick demonstration and offline-build instructions
+Admin website:
+  cd admin
+  npm ci
+  npm run dev
 
-## Run the website
-```bash
-cd admin
-npm ci
-npm run dev
-```
+Backend:
+  cd backend
+  python -m venv .venv
+  pip install -r requirements.txt
+  uvicorn app.main:app --host 0.0.0.0 --port 8000
 
-Build a static version:
-```bash
-npm run build
-```
+The backend requires DATABASE_URL, SECURITY_JWT_SECRET, ADMIN_USERNAME, and ADMIN_PASSWORD. Frontends use VITE_API_URL.
 
-Then open `admin/dist/index.html` for the offline build.
-
-## Backend
-The backend targets Java 21 and PostgreSQL. Development configuration is environment-variable driven; the repository's local database defaults are development-only and must not be reused as production secrets.
-
-## Security highlights
-- BCrypt password hashing
-- JWT-based stateless authentication
-- Role-based access control
-- Ownership checks for organizer operations
-- Student-only self-registration
-- Unique registration/pass/assignment constraints
-- Pessimistic locking for event-capacity registration
-- Cryptographically random opaque entry-pass tokens
-- Server-side judging and score validation
-- Ownership-protected result publication
-
-See `docs/SECURITY.md` for the security model and production hardening requirements.
+## Deployment
+render.yaml defines the FastAPI backend, student website, admin website, and PostgreSQL database.
 
 ## Documentation
-- `docs/SRS.md` – requirements and acceptance criteria
-- `docs/ARCHITECTURE.md` – system architecture and boundaries
-- `docs/DATABASE.md` – entities, relationships and integrity rules
-- `docs/API.md` – backend endpoints and security model
-- `docs/SECURITY.md` – threats, controls and hardening
-- `docs/TESTING.md` – verification and manual test checklist
-- `docs/USER_GUIDE.md` – demo usage instructions
-- `docs/LIMITATIONS.md` – current limitations and future scope
+- docs/SRS.md — requirements and scope
+- docs/ARCHITECTURE.md — current architecture
+- docs/DATABASE.md — database model
+- docs/API.md — API endpoints
+- docs/SECURITY.md — security controls
+- docs/TESTING.md — verification checklist
+- docs/USER_GUIDE.md — website and admin usage
+- docs/LIMITATIONS.md — known limitations
 
-## Important scope statement
-This is an academic project/demo. The offline website should not be presented as a production-connected event platform. The backend is a production-oriented foundation and requires additional hardening, integration testing and deployment controls before real-world use.
+This is an academic project. Production use requires appropriate hosting, secrets management, backups, monitoring, rate limiting, and a formal security review.

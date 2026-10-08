@@ -1,1 +1,0 @@
-package com.campusfest.backend.judging; public record JudgeAssignmentResponse(Long id,Long competitionId,Long judgeId,String judgeName,String judgeEmail){static JudgeAssignmentResponse from(JudgeAssignment a){return new JudgeAssignmentResponse(a.getId(),a.getCompetition().getId(),a.getJudge().getId(),a.getJudge().getName(),a.getJudge().getEmail());}}

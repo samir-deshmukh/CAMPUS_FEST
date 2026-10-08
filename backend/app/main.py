@@ -65,12 +65,6 @@ def init_db():
           updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
           PRIMARY KEY(admin_key, client_id)
         );
-        CREATE TABLE IF NOT EXISTS scanner_credentials(
-          id INTEGER PRIMARY KEY CHECK (id=1),
-          username TEXT NOT NULL,
-          password_hash TEXT NOT NULL,
-          is_default BOOLEAN NOT NULL DEFAULT FALSE
-        );
         CREATE TABLE IF NOT EXISTS event_gallery(
           id BIGSERIAL PRIMARY KEY,
           event_id BIGINT REFERENCES events(id) ON DELETE CASCADE,
@@ -81,52 +75,17 @@ def init_db():
         """)
         c.execute("ALTER TABLE event_gallery ALTER COLUMN event_id DROP NOT NULL")
         c.execute("ALTER TABLE event_gallery ADD COLUMN IF NOT EXISTS description TEXT NOT NULL DEFAULT ''")
-        c.execute("ALTER TABLE scanner_credentials ADD COLUMN IF NOT EXISTS is_default BOOLEAN NOT NULL DEFAULT FALSE")
         c.execute("ALTER TABLE admin_active_lock DROP CONSTRAINT IF EXISTS admin_active_lock_pkey")
         c.execute("ALTER TABLE admin_active_lock ADD PRIMARY KEY(admin_key, client_id)")
         c.execute("UPDATE registrations SET course=college WHERE (course IS NULL OR course='') AND college IS NOT NULL AND college<>''")
 
 
-def hash_scanner_password(password: str, salt: bytes | None = None) -> str:
-    salt = salt or secrets.token_bytes(16)
-    digest = hashlib.pbkdf2_hmac("sha256", password.encode(), salt, 210000)
-    return base64.b64encode(salt).decode() + "$" + base64.b64encode(digest).decode()
-
-def verify_scanner_password(password: str, stored: str) -> bool:
-    try:
-        salt_b64, digest_b64 = stored.split("$", 1)
-        salt = base64.b64decode(salt_b64)
-        expected = base64.b64decode(digest_b64)
-        actual = hashlib.pbkdf2_hmac("sha256", password.encode(), salt, 210000)
-        return secrets.compare_digest(actual, expected)
-    except Exception:
-        return False
-
 init_db()
 
-with db() as _c:
-    _row = _c.execute("SELECT id,username,is_default FROM scanner_credentials WHERE id=1").fetchone()
-    if not _row:
-        _c.execute("INSERT INTO scanner_credentials(id,username,password_hash,is_default) VALUES(1,%s,%s,FALSE)", ("", hash_scanner_password(ADMIN_PASS)))
-        _c.commit()
-    elif not _row["is_default"] and _row["username"].casefold() == ADMIN_USER.casefold():
-        # One-time migration: remove the old hardcoded SAI scanner ID that was
-        # created by the original initialization. Do not affect future changes.
-        _c.execute("UPDATE scanner_credentials SET username='', is_default=TRUE WHERE id=1")
-        _c.commit()
 
 class Login(BaseModel):
     username: str
     password: str
-
-class ScannerCredentialsUpdate(BaseModel):
-    username: str
-    currentPassword: str
-    newPassword: str = ""
-
-class ScannerPasswordUpdate(BaseModel):
-    currentPassword: str
-    newPassword: str
 
 class EventIn(BaseModel):
     title: str
@@ -563,93 +522,6 @@ def verify(passToken: str, _: dict = Depends(admin)):
         "message": "Valid pass" if r["status"] == "ACTIVE" else "Registration cancelled",
         **registration_json(r, False)
     }
-
-@app.get("/api/admin/scanner-credentials")
-def get_scanner_credentials(_: dict = Depends(admin)):
-    with db() as c:
-        row = c.execute("SELECT username FROM scanner_credentials WHERE id=1").fetchone()
-    return {"username": row["username"] if row else ""}
-
-@app.post("/api/admin/scanner-credentials")
-def update_scanner_credentials(x: ScannerCredentialsUpdate, _: dict = Depends(admin)):
-    username = x.username.strip()
-    if not username or len(username) > 50 or len(x.currentPassword) > 100:
-        raise HTTPException(400, "Scanner ID must be 1-50 characters.")
-    with db() as c:
-        row = c.execute("SELECT password_hash FROM scanner_credentials WHERE id=1").fetchone()
-        if not row or not verify_scanner_password(x.currentPassword, row["password_hash"]):
-            raise HTTPException(401, "Current scanner password is incorrect.")
-        c.execute("UPDATE scanner_credentials SET username=%s WHERE id=1", (username,))
-        c.commit()
-    return {"ok": True, "username": username}
-
-@app.post("/api/admin/scanner-password")
-def update_scanner_password(x: ScannerPasswordUpdate, _: dict = Depends(admin)):
-    if len(x.currentPassword) > 100 or len(x.newPassword) < 6 or len(x.newPassword) > 100:
-        raise HTTPException(400, "New password must be 6-100 characters.")
-    with db() as c:
-        row = c.execute("SELECT password_hash FROM scanner_credentials WHERE id=1").fetchone()
-        if not row or not verify_scanner_password(x.currentPassword, row["password_hash"]):
-            raise HTTPException(401, "Current scanner password is incorrect.")
-        c.execute("UPDATE scanner_credentials SET password_hash=%s WHERE id=1", (hash_scanner_password(x.newPassword),))
-        c.commit()
-    return {"ok": True}
-
-@app.post("/api/scanner/login")
-def scanner_login(x: Login):
-    if len(x.username) > 50 or len(x.password) > 100:
-        raise HTTPException(400, "Input is too long")
-    with db() as c:
-        row = c.execute("SELECT username,password_hash FROM scanner_credentials WHERE id=1").fetchone()
-    if not row or x.username.casefold() != row["username"].casefold() or not verify_scanner_password(x.password, row["password_hash"]):
-        raise HTTPException(401, "Invalid credentials")
-    now = datetime.now(timezone.utc)
-    token = jwt.encode({
-        "sub": ADMIN_USER, "role": "SCANNER", "iat": int(now.timestamp()),
-        "exp": int((now + timedelta(hours=8)).timestamp())
-    }, SECRET, algorithm="HS256")
-    return {"token": token, "username": row["username"], "role": "SCANNER"}
-
-def scanner_user(authorization: str | None = Header(None)):
-    if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(401, "Scanner login required")
-    try:
-        payload = jwt.decode(authorization[7:], SECRET, algorithms=["HS256"])
-    except Exception:
-        raise HTTPException(401, "Invalid or expired scanner session")
-    if payload.get("role") != "SCANNER":
-        raise HTTPException(403, "Scanner access required")
-    return payload
-
-@app.get("/api/scanner/events")
-def scanner_events(_: dict = Depends(scanner_user)):
-    with db() as c:
-        rows = c.execute(
-            "SELECT id,title,status,poster_data FROM events ORDER BY id DESC"
-        ).fetchall()
-        return [{"id": r["id"], "title": r["title"], "status": r["status"], "posterData": r["poster_data"]} for r in rows]
-
-@app.post("/api/scanner/verify")
-def scanner_verify(passToken: str, eventId: int, _: dict = Depends(scanner_user)):
-    with db() as c:
-        c.execute("BEGIN")
-        r = c.execute("""SELECT r.*, e.title event_title FROM registrations r
-                         JOIN events e ON e.id=r.event_id WHERE r.pass_token=%s""", (passToken,)).fetchone()
-        if not r:
-            c.rollback()
-            return {"allowed": False, "message": "Invalid QR. Entry denied."}
-        if r["event_id"] != eventId:
-            c.rollback()
-            return {"allowed": False, "message": "This pass belongs to another event. Entry denied.", "name": r["name"], "eventTitle": r["event_title"]}
-        if r["status"] != "ACTIVE":
-            c.rollback()
-            return {"allowed": False, "message": "Registration is cancelled. Entry denied.", "name": r["name"], "eventTitle": r["event_title"]}
-        if r["entry_status"] == "ENTERED":
-            c.rollback()
-            return {"allowed": False, "message": "This pass has already been used for entry.", "name": r["name"], "eventTitle": r["event_title"]}
-        c.execute("UPDATE registrations SET entry_status='ENTERED' WHERE id=%s", (r["id"],))
-        c.commit()
-        return {"allowed": True, "message": "Scan successful. Entry allowed.", "name": r["name"], "course": r["course"], "eventTitle": r["event_title"], "registrationId": "CF-" + str(r["id"])}
 
 @app.get("/api/admin/dashboard")
 def dashboard(_: dict = Depends(admin)):

@@ -1,9 +1,9 @@
 services:
   - type: web
-    name: Sai-CampusFest-Backend
+    name: CampusFest-Backend
     runtime: python
     plan: free
-    repo: https://github.com/samir-deshmukh/Sai
+    repo: https://github.com/samir-deshmukh/CAMPUS_FEST
     branch: main
     buildCommand: pip install -r backend/requirements.txt
     startCommand: uvicorn app.main:app --app-dir backend --host 0.0.0.0 --port $PORT
@@ -17,48 +17,35 @@ services:
         sync: false
       - key: DATABASE_URL
         fromDatabase:
-          name: Sai-CampusFest-DB
+          name: CampusFest-DB
           property: connectionString
 
   - type: web
-    name: Sai-Student
+    name: CampusFest-Student
     runtime: static
     plan: free
-    repo: https://github.com/samir-deshmukh/Sai
+    repo: https://github.com/samir-deshmukh/CAMPUS_FEST
     branch: main
     buildCommand: cd site && npm ci && npm run build
     staticPublishPath: site/dist
     envVars:
       - key: VITE_API_URL
-        value: https://sai-campusfest-backend.onrender.com/api
+        value: https://campusfest-backend.onrender.com/api
 
   - type: web
-    name: Sai
+    name: CampusFest-Admin
     runtime: static
     plan: free
-    repo: https://github.com/samir-deshmukh/Sai
+    repo: https://github.com/samir-deshmukh/CAMPUS_FEST
     branch: main
     buildCommand: cd admin && npm ci && npm run build
     staticPublishPath: admin/dist
     envVars:
       - key: VITE_API_URL
-        value: https://sai-campusfest-backend.onrender.com/api
-
-  - type: web
-    name: Sai-QR-Scanner
-    runtime: static
-    plan: free
-    repo: https://github.com/samir-deshmukh/Sai
-    branch: main
-    buildCommand: cd scanner && npm ci && npm run build
-    staticPublishPath: scanner/dist
-    envVars:
-      - key: VITE_API_URL
-        value: https://sai-campusfest-backend.onrender.com/api
-
+        value: https://campusfest-backend.onrender.com/api
 
 databases:
-  - name: Sai-CampusFest-DB
+  - name: CampusFest-DB
     plan: free
     region: singapore
     postgresMajorVersion: '16'

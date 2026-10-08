@@ -1,86 +1,41 @@
-# CampusFest API Reference
+# CampusFest API
 
-Base path: /api
-
-## Health
-
-GET /health
-- Returns backend service health.
+Base URL: /api
 
 ## Authentication
+- POST /auth/login — administrator login.
+- POST /auth/admin-lock/heartbeat — maintain the administrator browser lock.
+- POST /auth/admin-lock/release — release the administrator browser lock.
 
-POST /auth/register
-- Creates a user account and stores a BCrypt password hash.
+## Public
+- GET /events — published events.
+- POST /registrations/events/{event_id} — create a registration.
+- GET /registrations/me?passToken=... — retrieve a pass.
+- DELETE /registrations/me?passToken=... — cancel a registration.
+- GET /lost-found — published Lost & Found items.
+- POST /lost-found — report a found item.
+- POST /lost-found/{item_id}/claim — submit a claim.
+- GET /event-gallery — event photos.
+- POST /validate-text — validate submitted text.
 
-POST /auth/login
-- Authenticates credentials and returns a JWT authentication response.
+## Administrator
+- GET /events/all
+- POST /events
+- PUT /events/{event_id}
+- POST /events/{event_id}/close
+- POST /events/{event_id}/reopen
+- DELETE /events/{event_id}
+- GET /admin/events/{event_id}/registrations
+- GET /admin/registrations
+- GET /admin/event-gallery
+- POST /admin/event-gallery
+- PUT /admin/event-gallery/{photo_id}
+- DELETE /admin/event-gallery/{photo_id}
+- GET /admin/lost-found
+- GET /admin/lost-found/claims
+- POST /admin/lost-found/{item_id}/verify
+- POST /admin/lost-found/{item_id}/resolve
+- POST /admin/lost-found/claims/{claim_id}/approve
+- POST /admin/lost-found/claims/{claim_id}/reject
 
-## Events
-
-GET /events
-GET /events/{id}
-- Read event information.
-
-GET /events/all
-- Organizer/Admin event listing.
-
-POST /events
-PUT /events/{id}
-DELETE /events/{id}
-- Organizer/Admin event management.
-
-## Registrations
-
-POST /registrations/events/{eventId}
-- Creates an active registration and enforces event capacity.
-
-GET /registrations/me
-- Lists the authenticated user's registrations.
-
-DELETE /registrations/{id}
-- Cancels the authenticated user's own registration.
-
-## Entry passes
-
-POST /passes/registrations/{registrationId}
-- Issues a pass for an active registration.
-
-GET /passes/registrations/{registrationId}
-- Gets the user's pass.
-
-POST /passes/check-in?token={token}
-- Organizer/Admin check-in with backend token validation.
-
-## Competitions
-
-GET /competitions
-GET /competitions/{id}
-
-POST /competitions
-PUT /competitions/{id}
-DELETE /competitions/{id}
-
-POST /competitions/{id}/criteria
-GET /competitions/{id}/criteria
-
-POST /competitions/{id}/judges/{judgeId}
-GET /competitions/{id}/judges
-
-GET /judging/my-competitions
-
-POST /judging/competitions/{id}/evaluations
-- Judge submission; server calculates total score.
-
-## Official results
-
-POST /competitions/{id}/publish-results
-- Organizer/Admin publishes official results after competition closure.
-
-GET /competitions/{id}/results
-- Returns published rankings without exposing raw judge evaluations.
-
-## API security model
-
-Protected endpoints require a valid JWT. Role checks use Spring Security method authorization and service-level ownership/business validation.
-
-The API is designed for backend enforcement; the frontend must not be trusted to enforce permissions.
+Administrator endpoints require a valid Bearer token and admin client identifier where enforced by the application.
